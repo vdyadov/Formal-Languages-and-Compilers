@@ -1,6 +1,10 @@
 # Prerequisites
 *.d
 
+# Builds directory
+build/
+.qtcreator/
+
 # Compiled Object files
 *.slo
 *.lo
