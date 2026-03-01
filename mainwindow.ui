@@ -15,11 +15,18 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <widget class="QTextEdit" name="textEdit"/>
+    <item row="2" column="0">
+     <widget class="QTableWidget" name="tableWidget"/>
     </item>
     <item row="1" column="0">
-     <widget class="QTableWidget" name="tableWidget"/>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>-1</number>
+      </property>
+      <property name="tabsClosable">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -47,11 +54,12 @@
      <string>Правка</string>
     </property>
     <addaction name="action_undo"/>
-    <addaction name="action_repeat"/>
+    <addaction name="action_redo"/>
     <addaction name="action_cut"/>
     <addaction name="action_copy"/>
     <addaction name="action_paste"/>
     <addaction name="action_delete"/>
+    <addaction name="action_select_all"/>
    </widget>
    <widget class="QMenu" name="menu_3">
     <property name="title">
@@ -100,7 +108,7 @@
    <addaction name="action_save"/>
    <addaction name="separator"/>
    <addaction name="action_undo"/>
-   <addaction name="action_repeat"/>
+   <addaction name="action_redo"/>
    <addaction name="action_copy"/>
    <addaction name="action_cut"/>
    <addaction name="action_paste"/>
@@ -163,9 +171,9 @@
     <string>Отменить</string>
    </property>
   </action>
-  <action name="action_repeat">
+  <action name="action_redo">
    <property name="icon">
-    <iconset theme="QIcon::ThemeIcon::ViewRestore"/>
+    <iconset theme="QIcon::ThemeIcon::EditRedo"/>
    </property>
    <property name="text">
     <string>Повторить</string>
@@ -260,6 +268,14 @@
    </property>
    <property name="text">
     <string>Пуск</string>
+   </property>
+  </action>
+  <action name="action_select_all">
+   <property name="icon">
+    <iconset theme="QIcon::ThemeIcon::EditSelectAll"/>
+   </property>
+   <property name="text">
+    <string>Выделить все</string>
    </property>
   </action>
  </widget>
