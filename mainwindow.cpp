@@ -218,11 +218,6 @@ void MainWindow::on_action_select_all_triggered() {
     }
 }
 
-#include <QDialog>
-#include <QVBoxLayout>
-#include <QTextBrowser>
-#include <QFile>
-
 void MainWindow::on_action_about_triggered() {
     // 1. Создаем диалоговое окно
     QDialog *aboutDialog = new QDialog(this);
@@ -254,6 +249,49 @@ void MainWindow::on_action_about_triggered() {
 
     // exec() делает окно модальным (пока не закроешь, в основное не вернешься)
     aboutDialog->exec();
+}
+
+void MainWindow::on_action_info_triggered()
+{
+    // Создаем объект сообщения
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("Справка по программе");
+
+    // Формируем текст справки с использованием HTML-тегов для красоты
+    QString helpText =
+        "<h2>Руководство пользователя</h2>"
+        "<p>Данный <b>языковой процессор</b> выполняет анализ входного текста по заданным правилам.</p>"
+
+        "<h3>1. Алфавит языка:</h3>"
+        "<ul>"
+        "<li>Латинские буквы: <b>a-z, A-Z</b></li>"
+        "<li>Цифры: <b>0-9</b></li>"
+        "<li>Операторы: <b>+, -, *, /, =</b></li>"
+        "<li>Разделители: <b>( ) { } ; ,</b></li>"
+        "</ul>"
+
+        "<h3>2. Порядок работы:</h3>"
+        "<ol>"
+        "<li>Введите текст программы в редакторе или откройте файл.</li>"
+        "<li>Нажмите <b>'Пуск'</b> (или клавишу F5) для запуска анализа.</li>"
+        "<li>Результаты будут отображены в нижней таблице.</li>"
+        "</ol>"
+
+        "<h3>3. Горячие клавиши:</h3>"
+        "<ul>"
+        "<li><b>Ctrl+O</b> — Открыть файл</li>"
+        "<li><b>Ctrl+S</b> — Сохранить</li>"
+        "<li><b>Ctrl++ / Ctrl+-</b> — Изменить масштаб текста</li>"
+        "<li><b>F1</b> — Вызов этой справки</li>"
+        "</ul>";
+
+    msgBox.setText(helpText);
+
+    // Указываем, что текст в формате HTML (чтобы теги <h2>, <ul> сработали)
+    msgBox.setTextFormat(Qt::RichText);
+
+    msgBox.setStandardButtons(QMessageBox::Ok);
+    msgBox.exec(); // Показываем окно
 }
 
 MainWindow::~MainWindow()

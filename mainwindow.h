@@ -6,6 +6,11 @@
 #include <QFileInfo>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QTextBrowser>
+#include <QFile>
+#include <QMessageBox>
 
 #include "codeeditor.h"
 
@@ -51,6 +56,7 @@ private slots:
     void on_action_select_all_triggered();
 
     void on_action_about_triggered();
+    void on_action_info_triggered();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
