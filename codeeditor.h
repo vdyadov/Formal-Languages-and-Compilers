@@ -30,7 +30,6 @@ private:
     QWidget *lineNumberArea;
 };
 
-// Вспомогательный класс для области нумерации
 class LineNumberArea : public QWidget {
 public:
     LineNumberArea(CodeEditor *editor) : QWidget(editor), codeEditor(editor) {}

@@ -10,7 +10,6 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent) {
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
 
-    // Устанавливаем моноширинный шрифт (важно для кода)
     QFont font("Consolas", 10);
     font.setStyleHint(QFont::Monospace);
     setFont(font);
@@ -27,7 +26,7 @@ int CodeEditor::lineNumberAreaWidth() {
     return space;
 }
 
-void CodeEditor::updateLineNumberAreaWidth(int /* newBlockCount */) {
+void CodeEditor::updateLineNumberAreaWidth(int) {
     setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
 }
 
@@ -86,20 +85,19 @@ void CodeEditor::zoomIn() {
     int size = f.pointSize();
     f.setPointSize(size + 1);
     setFont(f);
-    updateLineNumberAreaWidth(0); // Пересчитываем ширину полосы номеров
+    updateLineNumberAreaWidth(0);
 }
 
 void CodeEditor::zoomOut() {
     QFont f = font();
     int size = f.pointSize();
-    if (size > 1) { // Чтобы шрифт не исчез совсем
+    if (size > 1) {
         f.setPointSize(size - 1);
         setFont(f);
         updateLineNumberAreaWidth(0);
     }
 }
 
-// Добавим поддержку Ctrl + Колесо мыши
 void CodeEditor::wheelEvent(QWheelEvent *event) {
     if (event->modifiers() & Qt::ControlModifier) {
         if (event->angleDelta().y() > 0) zoomIn();

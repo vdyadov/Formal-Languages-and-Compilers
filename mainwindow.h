@@ -13,6 +13,7 @@
 #include <QMessageBox>
 
 #include "codeeditor.h"
+#include "infowindow.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -38,6 +39,7 @@ private:
     void runCompiler();
 
 private slots:
+    void updateCursorPosition();
     // File menu
     void on_action_new_triggered();
     void on_action_open_triggered();
@@ -54,7 +56,7 @@ private slots:
     void on_action_redo_triggered();
     void on_action_delete_triggered();
     void on_action_select_all_triggered();
-
+    // Info menu
     void on_action_about_triggered();
     void on_action_info_triggered();
 
