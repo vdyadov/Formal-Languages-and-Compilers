@@ -11,13 +11,16 @@ CONFIG += c++17
 SOURCES += \
     codeeditor.cpp \
     infowindow.cpp \
+    lexer.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     codeeditor.h \
     infowindow.h \
-    mainwindow.h
+    lexer.h \
+    mainwindow.h \
+    token.h
 
 FORMS += \
     mainwindow.ui

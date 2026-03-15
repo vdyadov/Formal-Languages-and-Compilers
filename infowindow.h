@@ -10,7 +10,6 @@ class InfoWindow : public QDialog {
     Q_OBJECT
 
 public:
-    // Конструктор принимает все, что нужно для настройки "личности" окна
     explicit InfoWindow(const QString &title, const QString &resourcePath, QWidget *parent = nullptr);
 
 private:

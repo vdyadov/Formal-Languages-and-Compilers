@@ -11,9 +11,11 @@
 #include <QTextBrowser>
 #include <QFile>
 #include <QMessageBox>
+#include <QSplitter>
 
 #include "codeeditor.h"
 #include "infowindow.h"
+#include "lexer.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -36,8 +38,6 @@ private:
     bool saveFile(CodeEditor *editor, const QString &path = "");
     void setupEditor(CodeEditor *editor, const QString &fileName);
 
-    void runCompiler();
-
 private slots:
     void updateCursorPosition();
     // File menu
@@ -59,6 +59,9 @@ private slots:
     // Info menu
     void on_action_about_triggered();
     void on_action_info_triggered();
+    // Run program
+    void on_action_run_triggered();
+    void on_tableWidget_cellDoubleClicked(int row);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

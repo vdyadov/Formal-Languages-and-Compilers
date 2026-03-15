@@ -7,6 +7,22 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    QSplitter *vSplitter = new QSplitter(Qt::Vertical, this);
+
+    vSplitter->addWidget(ui->tabWidget);
+    vSplitter->addWidget(ui->tableWidget);
+
+    QGridLayout *mainLayout = qobject_cast<QGridLayout*>(ui->centralwidget->layout());
+    if (mainLayout) {
+        mainLayout->addWidget(vSplitter, 0, 0);
+    }
+
+    vSplitter->setStretchFactor(0, 60);
+    vSplitter->setStretchFactor(1, 1);
+
+    vSplitter->setHandleWidth(4);
+    vSplitter->setStyleSheet("QSplitter::handle { background: #cccccc; }");
+
     // --- Файл ---
     ui->action_new->setShortcut(QKeySequence::New);       // Ctrl+N
     ui->action_open->setShortcut(QKeySequence::Open);     // Ctrl+O
@@ -27,7 +43,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // --- Пуск (Компиляция) ---
     ui->action_run->setShortcut(QKeySequence(Qt::Key_F5));
-    connect(ui->action_run, &QAction::triggered, this, &MainWindow::runCompiler);
 
     connect(ui->tabWidget, &QTabWidget::tabCloseRequested, [this](int index) {
         QWidget* tab = ui->tabWidget->widget(index);
@@ -36,13 +51,59 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::updateCursorPosition);
+
+    // --- Настройка таблицы ---
+    ui->tableWidget->setColumnCount(4);
+    ui->tableWidget->setHorizontalHeaderLabels({"Условный код", "Тип лексемы", "Лексема", "Местоположение"});
+    ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Растянуть по ширине
 }
 
-void MainWindow::runCompiler() {
-    if (CodeEditor *editor = currentEditor()) {
-        QString code = editor->toPlainText();
+void MainWindow::on_action_run_triggered() {
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (!editor) return;
+
+    QString code = editor->toPlainText();
+
+    Lexer scanner;
+    QList<Token> tokens = scanner.tokenize(code);
+
+    ui->tableWidget->setRowCount(0);
+
+    for (const Token &t : std::as_const(tokens)) {
+        int row = ui->tableWidget->rowCount();
+        ui->tableWidget->insertRow(row);
+
+        ui->tableWidget->setItem(row, 0, new QTableWidgetItem(QString::number(t.code)));
+
+        ui->tableWidget->setItem(row, 1, new QTableWidgetItem(t.typeName));
+
+        ui->tableWidget->setItem(row, 2, new QTableWidgetItem(t.lexeme));
+
+        ui->tableWidget->setItem(row, 3, new QTableWidgetItem(t.getLocation()));
+
+        if (t.code == -1) {
+            for (int col = 0; col < 4; ++col) {
+                ui->tableWidget->item(row, col)->setBackground(Qt::red);
+                ui->tableWidget->item(row, col)->setForeground(Qt::white);
+            }
+        }
     }
-    ui->statusbar->showMessage("Анализ запущен...", 2000);
+}
+
+void MainWindow::on_tableWidget_cellDoubleClicked(int row) {
+    QString location = ui->tableWidget->item(row, 3)->text();
+
+    int lineNum = location.section(' ', 1, 1).remove(',').toInt();
+    int startPos = location.section(' ', 2, 2).section('-', 0, 0).toInt();
+
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (editor) {
+        QTextBlock block = editor->document()->findBlockByLineNumber(lineNum - 1);
+        QTextCursor cursor(block);
+        cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, startPos - 1);
+        editor->setTextCursor(cursor);
+        editor->setFocus();
+    }
 }
 
 void MainWindow::updateCursorPosition() {
