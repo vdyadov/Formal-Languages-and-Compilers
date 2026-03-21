@@ -61,6 +61,7 @@ private slots:
     void on_action_info_triggered();
     // Run program
     void on_action_run_triggered();
+    void on_action_run_flex_bison_triggered();
     void on_tableWidget_cellDoubleClicked(int row);
 
 protected:

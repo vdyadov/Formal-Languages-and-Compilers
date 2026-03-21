@@ -1,6 +1,17 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+extern "C" {
+    #include "parser.tab.h"
+    typedef struct yy_buffer_state *YY_BUFFER_STATE;
+    YY_BUFFER_STATE yy_scan_string(const char *str);
+    void yy_delete_buffer(YY_BUFFER_STATE buffer);
+    int yyparse();
+
+    extern char all_errors[4096];
+    extern int yylineno;
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -10,7 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
     QSplitter *vSplitter = new QSplitter(Qt::Vertical, this);
 
     vSplitter->addWidget(ui->tabWidget);
-    vSplitter->addWidget(ui->tableWidget);
+    vSplitter->addWidget(ui->tabWidget_error);
 
     QGridLayout *mainLayout = qobject_cast<QGridLayout*>(ui->centralwidget->layout());
     if (mainLayout) {
@@ -88,6 +99,38 @@ void MainWindow::on_action_run_triggered() {
             }
         }
     }
+}
+
+void MainWindow::on_action_run_flex_bison_triggered() {
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (!editor) return;
+
+    QString code = editor->toPlainText();
+    // QString code = ui->codeEditor->toPlainText();
+    if (code.isEmpty()) return;
+
+    // Сброс состояния перед новым запуском
+    all_errors[0] = '\0';
+    yylineno = 1;
+
+    // 2. Настройка буфера Flex
+    QByteArray ba = code.toLocal8Bit();
+    YY_BUFFER_STATE buffer = yy_scan_string(ba.data());
+
+    // 3. Запуск парсера
+    yyparse();
+
+    // 4. Вывод результата
+    ui->textBrowser_errors->clear();
+    if (strlen(all_errors) > 0) {
+        // Выводим все накопленные ошибки
+        ui->textBrowser_errors->setPlainText(QString::fromLocal8Bit(all_errors));
+    } else {
+        ui->textBrowser_errors->setPlainText("Построение завершено: 0 ошибок.");
+    }
+
+    // 5. Очистка
+    yy_delete_buffer(buffer);
 }
 
 void MainWindow::on_tableWidget_cellDoubleClicked(int row) {

@@ -11,15 +11,18 @@ CONFIG += c++17
 SOURCES += \
     codeeditor.cpp \
     infowindow.cpp \
+    lex.yy.c \
     lexer.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    parser.tab.c
 
 HEADERS += \
     codeeditor.h \
     infowindow.h \
     lexer.h \
     mainwindow.h \
+    parser.tab.h \
     token.h
 
 FORMS += \

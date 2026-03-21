@@ -15,9 +15,6 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="2" column="0">
-     <widget class="QTableWidget" name="tableWidget"/>
-    </item>
     <item row="1" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
@@ -26,6 +23,33 @@
       <property name="tabsClosable">
        <bool>true</bool>
       </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QTabWidget" name="tabWidget_error">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab">
+       <attribute name="title">
+        <string>Ручной лексер</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="0">
+         <widget class="QTableWidget" name="tableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Flex &amp; Bison</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="0" column="0">
+         <widget class="QTextBrowser" name="textBrowser_errors"/>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -78,6 +102,7 @@
      <string>Пуск</string>
     </property>
     <addaction name="action_run"/>
+    <addaction name="action_run_flex_bison"/>
    </widget>
    <widget class="QMenu" name="menu_5">
     <property name="title">
@@ -276,6 +301,14 @@
    </property>
    <property name="text">
     <string>Выделить все</string>
+   </property>
+  </action>
+  <action name="action_run_flex_bison">
+   <property name="icon">
+    <iconset theme="QIcon::ThemeIcon::MediaSeekForward"/>
+   </property>
+   <property name="text">
+    <string>Пуск с flex&amp;bison</string>
    </property>
   </action>
  </widget>
