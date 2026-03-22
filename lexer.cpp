@@ -39,20 +39,25 @@ QList<Token> Lexer::tokenize(const QString &source) {
         }
 
         if (ch == '\'') {
-            int start = column;
+            int startCol = column;
             QString val = "'";
             pos++; column++;
-            while (pos < source.length() && source[pos] != '\'') {
+            bool closed = false;
+
+            while (pos < source.length() && source[pos] != '\'' && source[pos] != '\n') {
                 val += source[pos];
-                if (source[pos] == '\n') { line++; column = 0; }
                 pos++; column++;
             }
-            if (pos < source.length()) {
+
+            if (pos < source.length() && source[pos] == '\'') {
                 val += "'";
-                tokens.append(Token(7, "Инициализатор строки", val, line, start, column));
+                tokens.append(Token(7, "Инициализатор строки", val, line, startCol, column));
                 pos++; column++;
-            } else {
-                tokens.append(Token(-1, "ОШИБКА", "Незакрытая строка", line, start, column));
+                closed = true;
+            }
+
+            if (!closed) {
+                tokens.append(Token(-1, "ОШИБКА", "Незакрытая строка: " + val, line, startCol, column));
             }
             continue;
         }

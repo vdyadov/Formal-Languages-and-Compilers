@@ -14,7 +14,6 @@ struct Token {
     Token(int c, QString type, QString val, int l, int s, int e)
         : code(c), typeName(type), lexeme(val), line(l), startCol(s), endCol(e) {}
 
-    // Удобный метод для формирования строки местоположения
     QString getLocation() const {
         return QString("строка %1, %2-%3").arg(line).arg(startCol).arg(endCol);
     }

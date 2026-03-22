@@ -13,13 +13,15 @@ SOURCES += \
     infowindow.cpp \
     lexer.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    parser.cpp
 
 HEADERS += \
     codeeditor.h \
     infowindow.h \
     lexer.h \
     mainwindow.h \
+    parser.h \
     token.h
 
 FORMS += \

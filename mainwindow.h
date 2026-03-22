@@ -16,6 +16,7 @@
 #include "codeeditor.h"
 #include "infowindow.h"
 #include "lexer.h"
+#include "parser.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -62,6 +63,7 @@ private slots:
     // Run program
     void on_action_run_triggered();
     void on_tableWidget_cellDoubleClicked(int row);
+    void on_tableWidget_error_cellDoubleClicked(int row, int column);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

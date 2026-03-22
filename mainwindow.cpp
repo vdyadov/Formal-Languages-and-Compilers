@@ -10,7 +10,7 @@ MainWindow::MainWindow(QWidget *parent)
     QSplitter *vSplitter = new QSplitter(Qt::Vertical, this);
 
     vSplitter->addWidget(ui->tabWidget);
-    vSplitter->addWidget(ui->tableWidget);
+    vSplitter->addWidget(ui->tabWidget_error);
 
     QGridLayout *mainLayout = qobject_cast<QGridLayout*>(ui->centralwidget->layout());
     if (mainLayout) {
@@ -22,6 +22,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     vSplitter->setHandleWidth(4);
     vSplitter->setStyleSheet("QSplitter::handle { background: #cccccc; }");
+
+    ui->tabWidget_error->setCurrentIndex(1);
 
     // --- Файл ---
     ui->action_new->setShortcut(QKeySequence::New);       // Ctrl+N
@@ -55,38 +57,103 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Настройка таблицы ---
     ui->tableWidget->setColumnCount(4);
     ui->tableWidget->setHorizontalHeaderLabels({"Условный код", "Тип лексемы", "Лексема", "Местоположение"});
-    ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Растянуть по ширине
+    ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_error->setColumnCount(3);
+    ui->tableWidget_error->setHorizontalHeaderLabels({"Неверный фрагмент", "Местоположение", "Описание"});
+    ui->tableWidget_error->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 }
 
 void MainWindow::on_action_run_triggered() {
     CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
     if (!editor) return;
-
     QString code = editor->toPlainText();
 
     Lexer scanner;
     QList<Token> tokens = scanner.tokenize(code);
 
     ui->tableWidget->setRowCount(0);
-
     for (const Token &t : std::as_const(tokens)) {
         int row = ui->tableWidget->rowCount();
         ui->tableWidget->insertRow(row);
-
         ui->tableWidget->setItem(row, 0, new QTableWidgetItem(QString::number(t.code)));
-
         ui->tableWidget->setItem(row, 1, new QTableWidgetItem(t.typeName));
-
         ui->tableWidget->setItem(row, 2, new QTableWidgetItem(t.lexeme));
-
         ui->tableWidget->setItem(row, 3, new QTableWidgetItem(t.getLocation()));
+        if (t.code == -1) ui->tableWidget->item(row, 2)->setBackground(Qt::red);
+    }
 
-        if (t.code == -1) {
-            for (int col = 0; col < 4; ++col) {
-                ui->tableWidget->item(row, col)->setBackground(Qt::red);
-                ui->tableWidget->item(row, col)->setForeground(Qt::white);
-            }
+    Parser parser(tokens);
+    QList<SyntaxError> errors = parser.parse();
+
+    ui->tableWidget_error->setRowCount(0);
+
+    ui->tabWidget_error->setCurrentIndex(1);
+
+    if (errors.isEmpty()) {
+        ui->tableWidget_error->insertRow(0);
+        ui->tableWidget_error->setItem(0, 2, new QTableWidgetItem("Синтаксических ошибок нет!"));
+    } else {
+        for (const auto &err : std::as_const(errors)) {
+            int row = ui->tableWidget_error->rowCount();
+            ui->tableWidget_error->insertRow(row);
+            ui->tableWidget_error->setItem(row, 0, new QTableWidgetItem(err.fragment));
+            ui->tableWidget_error->setItem(row, 1, new QTableWidgetItem(QString("Стр %1, Поз %2").arg(err.line).arg(err.col)));
+            ui->tableWidget_error->setItem(row, 2, new QTableWidgetItem(err.description));
         }
+    }
+
+    // Вывод в StatusBar
+    statusBar()->showMessage(QString("Анализ завершен. Найдено ошибок: %1").arg(errors.size()));
+
+    // Добавляем финальную строку в таблицу
+    // int lastRow = ui->tableWidget_error->rowCount();
+    // ui->tableWidget_error->insertRow(lastRow);
+
+    // auto *totalLabel = new QTableWidgetItem("Общее количество ошибок:");
+    // totalLabel->setTextAlignment(Qt::AlignCenter);
+    // totalLabel->setBackground(QColor(240, 240, 240));
+
+    // ui->tableWidget_error->setItem(lastRow, 0, totalLabel);
+    // ui->tableWidget_error->setSpan(lastRow, 0, 1, 2); // Объединяем 2 колонки
+
+    // auto *countItem = new QTableWidgetItem(QString::number(errors.size()));
+    // countItem->setTextAlignment(Qt::AlignCenter);
+    // ui->tableWidget_error->setItem(lastRow, 2, countItem);
+}
+
+void MainWindow::on_tableWidget_error_cellDoubleClicked(int row, int column)
+{
+    if (row >= ui->tableWidget_error->rowCount() - 1) return;
+
+    QTableWidgetItem *item = ui->tableWidget_error->item(row, 1);
+    if (!item) return;
+
+    QString locText = item->text();
+
+    static QRegularExpression re("(\\d+)");
+    QRegularExpressionMatchIterator i = re.globalMatch(locText);
+
+    QList<int> coords;
+    while (i.hasNext()) {
+        coords << i.next().captured(1).toInt();
+    }
+
+    if (coords.size() < 2) return;
+
+    int targetLine = coords[0];
+    int targetCol = coords[1];
+
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (editor) {
+        QTextBlock block = editor->document()->findBlockByLineNumber(targetLine - 1);
+
+        QTextCursor cursor(block);
+
+        cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, targetCol - 1);
+
+        editor->setTextCursor(cursor);
+        editor->setFocus();
     }
 }
 
