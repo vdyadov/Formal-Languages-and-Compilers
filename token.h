@@ -11,6 +11,8 @@ struct Token {
     int startCol;
     int endCol;
 
+    Token() : code(0), typeName(""), lexeme(""), line(0), startCol(0), endCol(0) {}
+
     Token(int c, QString type, QString val, int l, int s, int e)
         : code(c), typeName(type), lexeme(val), line(l), startCol(s), endCol(e) {}
 

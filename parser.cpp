@@ -41,33 +41,42 @@ QList<SyntaxError> Parser::parse() {
     m_pos = 0;
     if (m_tokens.isEmpty()) return m_errors;
 
+    enum State { CONST_ST, ID_ST, COLON_ST, TYPE_ST, EQUALS_ST, VALUE_ST, SEMI_ST, SYNC_ST };
+
+    QVector<int> expectedCodes = {1, 3, 5, 2, 6, 7, 8};
+    QStringList descriptions = {
+        "Ожидалось 'Const'", "Ожидалось имя переменной", "Ожидалось ':'",
+        "Ожидалось 'string'", "Ожидалось '='", "Ожидалась строка", "Пропущена ';'"
+    };
+
     while (!isAtEnd()) {
-        if (currentToken().code == -1) {
-            m_errors.append({currentToken().lexeme, currentToken().line, currentToken().startCol, "Лексическая ошибка"});
-            m_pos++;
-            continue;
-        }
+        int lineStart = currentToken().line;
 
-        if (currentToken().code == 1 || currentToken().code == 3) {
-            int currentLine = currentToken().line;
-            bool lineHasError = false;
+        for (int i = 0; i < expectedCodes.size(); ++i) {
+            int expected = expectedCodes[i];
 
-            if (!match(1, "Ожидалось 'Const'")) lineHasError = true;
-            if (!lineHasError && !match(3, "Ожидалось имя переменной")) lineHasError = true;
-            if (!lineHasError && !match(5, "Ожидалось ':'")) lineHasError = true;
-            if (!lineHasError && !match(2, "Ожидалось 'string'")) lineHasError = true;
-            if (!lineHasError && !match(6, "Ожидалось '='")) lineHasError = true;
-            if (!lineHasError && !match(7, "Ожидалось строковое значение")) lineHasError = true;
-            if (!lineHasError && !match(8, "Пропущена ';' в конце объявления")) lineHasError = true;
+            if (isAtEnd() || currentToken().line != lineStart) {
+                Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
+                m_errors.append({"", lineStart, lastT.endCol + 1, descriptions[i]});
+                continue;
+            }
 
-            if (lineHasError) {
-                while (!isAtEnd() && currentToken().line == currentLine && currentToken().code != 8) {
+            Token t = currentToken();
+
+            if (t.code == expected) {
+                m_pos++;
+            } else {
+                m_errors.append({t.lexeme, t.line, t.startCol, descriptions[i]});
+
+                if (i + 1 < expectedCodes.size() && t.code == expectedCodes[i + 1]) {
+                } else {
                     m_pos++;
                 }
-                if (!isAtEnd() && currentToken().code == 8) m_pos++;
             }
-        } else {
-            m_errors.append({currentToken().lexeme, currentToken().line, currentToken().startCol, "Неожиданный фрагмент вне Const"});
+        }
+
+        while (!isAtEnd() && currentToken().line == lineStart) {
+            m_errors.append({currentToken().lexeme, lineStart, currentToken().startCol, "Лишняя лексема"});
             m_pos++;
         }
     }
