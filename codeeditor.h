@@ -4,6 +4,7 @@
 #include <QPlainTextEdit>
 #include <QPainter>
 #include <QTextBlock>
+#include <QPair>
 
 class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
@@ -13,6 +14,9 @@ public:
 
     void zoomIn();
     void zoomOut();
+
+    void setRegexMatchHighlights(const QList<QPair<int, int>> &ranges);
+    void clearRegexMatchHighlights();
 
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     int lineNumberAreaWidth();
@@ -28,6 +32,7 @@ private slots:
 
 private:
     QWidget *lineNumberArea;
+    QList<QPair<int, int>> m_regexMatchRanges;
 };
 
 class LineNumberArea : public QWidget {

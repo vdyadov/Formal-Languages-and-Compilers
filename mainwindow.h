@@ -8,7 +8,6 @@
 #include <QMessageBox>
 #include <QDialog>
 #include <QVBoxLayout>
-#include <QTextBrowser>
 #include <QFile>
 #include <QMessageBox>
 #include <QSplitter>
@@ -62,6 +61,8 @@ private slots:
     void on_action_info_triggered();
     // Run program
     void on_action_run_triggered();
+    void on_action_run_regex_triggered();
+    void on_tableWidget_regex_itemSelectionChanged();
     void on_tableWidget_cellDoubleClicked(int row);
     void on_tableWidget_error_cellDoubleClicked(int row, int column);
     void on_tableWidget_error_cellClicked(int row, int column);
