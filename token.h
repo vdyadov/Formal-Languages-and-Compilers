@@ -19,4 +19,12 @@ struct Token {
         return QString("строка %1, %2-%3").arg(line).arg(startCol).arg(endCol);
     }
 };
+
+struct SearchResult {
+    QString text;    // Найденная подстрока
+    int line;        // Номер строки
+    int column;      // Позиция в строке
+    int length;      // Длина
+    int absolutePos; // Абсолютная позиция в документе (нужна для подсветки)
+};
 #endif // TOKEN_H

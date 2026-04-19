@@ -1,5 +1,8 @@
 #include "codeeditor.h"
 
+#include <QColor>
+#include <QTextEdit>
+
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent) {
     lineNumberArea = new LineNumberArea(this);
 
@@ -43,6 +46,18 @@ void CodeEditor::resizeEvent(QResizeEvent *e) {
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
 }
 
+void CodeEditor::setRegexMatchHighlights(const QList<QPair<int, int>> &ranges)
+{
+    m_regexMatchRanges = ranges;
+    highlightCurrentLine();
+}
+
+void CodeEditor::clearRegexMatchHighlights()
+{
+    m_regexMatchRanges.clear();
+    highlightCurrentLine();
+}
+
 void CodeEditor::highlightCurrentLine() {
     QList<QTextEdit::ExtraSelection> extraSelections;
     if (!isReadOnly()) {
@@ -54,6 +69,22 @@ void CodeEditor::highlightCurrentLine() {
         selection.cursor.clearSelection();
         extraSelections.append(selection);
     }
+
+    static const QColor matchColor(255, 220, 90, 170);
+    for (const auto &range : std::as_const(m_regexMatchRanges)) {
+        const int start = range.first;
+        const int len = range.second;
+        if (len <= 0)
+            continue;
+        QTextEdit::ExtraSelection matchSel;
+        matchSel.format.setBackground(matchColor);
+        QTextCursor c(document());
+        c.setPosition(start);
+        c.setPosition(start + len, QTextCursor::KeepAnchor);
+        matchSel.cursor = c;
+        extraSelections.append(matchSel);
+    }
+
     setExtraSelections(extraSelections);
 }
 

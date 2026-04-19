@@ -15,20 +15,10 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="1" column="0">
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>-1</number>
-      </property>
-      <property name="tabsClosable">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
+    <item row="4" column="0">
      <widget class="QTabWidget" name="tabWidget_error">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -50,6 +40,89 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Регулярные выражения</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_4">
+        <item row="0" column="0">
+         <widget class="QTableWidget" name="tableWidget_regex"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>-1</number>
+      </property>
+      <property name="tabsClosable">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QWidget" name="searchBarWidget">
+      <layout class="QHBoxLayout" name="horizontalLayout_search">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QComboBox" name="searchTypeCombo">
+         <item>
+          <property name="text">
+           <string>Поиск 9 цифр</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Идентификатор (буквы/цифры)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Base32 формат</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="regexPatternEdit">
+         <property name="placeholderText">
+          <string>Регулярное выражение (например \d+)</string>
+         </property>
+         <property name="toolTip">
+          <string>Если поле не пустое, поиск выполняется по этому шаблону; иначе используется выбор слева.</string>
+         </property>
+         <property name="clearButtonEnabled">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="regexSearchButton">
+         <property name="text">
+          <string>Найти</string>
+         </property>
+         <property name="toolTip">
+          <string>Выполнить поиск по регулярному выражению в текущем файле</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
    </layout>
@@ -60,7 +133,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>21</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu">
@@ -103,6 +176,7 @@
     </property>
     <addaction name="action_run"/>
     <addaction name="action_run_flex_bison"/>
+    <addaction name="action_run_regex"/>
    </widget>
    <widget class="QMenu" name="menu_5">
     <property name="title">
@@ -309,6 +383,14 @@
    </property>
    <property name="text">
     <string>Пуск с flex&amp;bison</string>
+   </property>
+  </action>
+  <action name="action_run_regex">
+   <property name="icon">
+    <iconset theme="QIcon::ThemeIcon::MailSend"/>
+   </property>
+   <property name="text">
+    <string>Поиск регулярных выражений</string>
    </property>
   </action>
  </widget>

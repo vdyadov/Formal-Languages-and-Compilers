@@ -18,10 +18,18 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    ui->horizontalLayout_search->setStretch(0, 0);
+    ui->horizontalLayout_search->setStretch(1, 1);
+    ui->horizontalLayout_search->setStretch(2, 0);
+
     QSplitter *vSplitter = new QSplitter(Qt::Vertical, this);
 
     vSplitter->addWidget(ui->tabWidget);
+    vSplitter->addWidget(ui->searchBarWidget);
     vSplitter->addWidget(ui->tabWidget_error);
+
+    connect(ui->regexPatternEdit, &QLineEdit::returnPressed, this, &MainWindow::on_action_run_regex_triggered);
+    connect(ui->regexSearchButton, &QPushButton::clicked, this, &MainWindow::on_action_run_regex_triggered);
 
     QGridLayout *mainLayout = qobject_cast<QGridLayout*>(ui->centralwidget->layout());
     if (mainLayout) {
@@ -29,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     vSplitter->setStretchFactor(0, 60);
-    vSplitter->setStretchFactor(1, 1);
+    vSplitter->setStretchFactor(2, 1);
 
     vSplitter->setHandleWidth(4);
     vSplitter->setStyleSheet("QSplitter::handle { background: #cccccc; }");
@@ -66,7 +74,11 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Настройка таблицы ---
     ui->tableWidget->setColumnCount(4);
     ui->tableWidget->setHorizontalHeaderLabels({"Условный код", "Тип лексемы", "Лексема", "Местоположение"});
-    ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Растянуть по ширине
+    ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_regex->setColumnCount(3);
+    ui->tableWidget_regex->setHorizontalHeaderLabels({"Подстрока", "Позиция (Стр:Сим)", "Длина"});
+    ui->tableWidget_regex->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 }
 
 void MainWindow::on_action_run_triggered() {
@@ -83,13 +95,9 @@ void MainWindow::on_action_run_triggered() {
     for (const Token &t : std::as_const(tokens)) {
         int row = ui->tableWidget->rowCount();
         ui->tableWidget->insertRow(row);
-
         ui->tableWidget->setItem(row, 0, new QTableWidgetItem(QString::number(t.code)));
-
         ui->tableWidget->setItem(row, 1, new QTableWidgetItem(t.typeName));
-
         ui->tableWidget->setItem(row, 2, new QTableWidgetItem(t.lexeme));
-
         ui->tableWidget->setItem(row, 3, new QTableWidgetItem(t.getLocation()));
 
         if (t.code == -1) {
@@ -106,31 +114,155 @@ void MainWindow::on_action_run_flex_bison_triggered() {
     if (!editor) return;
 
     QString code = editor->toPlainText();
-    // QString code = ui->codeEditor->toPlainText();
     if (code.isEmpty()) return;
 
-    // Сброс состояния перед новым запуском
     all_errors[0] = '\0';
     yylineno = 1;
 
-    // 2. Настройка буфера Flex
     QByteArray ba = code.toLocal8Bit();
     YY_BUFFER_STATE buffer = yy_scan_string(ba.data());
 
-    // 3. Запуск парсера
     yyparse();
 
-    // 4. Вывод результата
     ui->textBrowser_errors->clear();
     if (strlen(all_errors) > 0) {
-        // Выводим все накопленные ошибки
         ui->textBrowser_errors->setPlainText(QString::fromLocal8Bit(all_errors));
     } else {
         ui->textBrowser_errors->setPlainText("Построение завершено: 0 ошибок.");
     }
 
-    // 5. Очистка
     yy_delete_buffer(buffer);
+}
+
+QList<SearchResult> findIdentifierCustom(const QString &text) {
+    QList<SearchResult> results;
+
+    QStringList lines = text.split('\n');
+    int currentAbsPos = 0;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i].trimmed();
+        if (line.isEmpty()) {
+            currentAbsPos += lines[i].length() + 1;
+            continue;
+        }
+
+        int state = 0;
+        int count = 0;
+        bool ok = true;
+
+        for (QChar ch : line) {
+            if (state == 0) {
+                if (ch.isLetter()) {
+                    state = 1;
+                    count++;
+                } else {
+                    ok = false; break;
+                }
+            } else if (state == 1 || state == 2) {
+                if (ch.isLetterOrNumber() || ch == '_') {
+                    state = 2;
+                    count++;
+                } else {
+                    ok = false; break;
+                }
+            }
+        }
+
+        if (ok && count >= 2 && count <= 30) {
+            int lineStartPos = text.indexOf(line, currentAbsPos);
+            results.append({line, i + 1, 1, count, lineStartPos});
+        }
+
+        currentAbsPos += lines[i].length() + 1;
+    }
+    return results;
+}
+
+void MainWindow::on_action_run_regex_triggered() {
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (!editor) return;
+
+    QString text = editor->toPlainText();
+    if (text.isEmpty()) {
+        editor->clearRegexMatchHighlights();
+        QMessageBox::information(this, "Поиск", "Нет данных для поиска");
+        return;
+    }
+
+    QString pattern = ui->regexPatternEdit->text().trimmed();
+    if (pattern.isEmpty()) {
+        switch (ui->searchTypeCombo->currentIndex()) {
+        case 0: pattern = "^\\d{9}$"; break;
+        case 1: pattern = "^[a-zA-Zа-яёА-ЯЁ][a-zA-Zа-яёА-ЯЁ0-9]{1,29}$"; break;
+        case 2: pattern = "^([A-Z2-7]{8})*([A-Z2-7]{2}={6}|[A-Z2-7]{4}={4}|[A-Z2-7]{5}={3}|[A-Z2-7]{7}=)?$"; break;
+        }
+    }
+
+    QRegularExpression rex(pattern);
+    if (!rex.isValid()) {
+        editor->clearRegexMatchHighlights();
+        QMessageBox::warning(this, "Поиск регулярных выражений",
+                             QString("Некорректное регулярное выражение:\n%1").arg(rex.errorString()));
+        return;
+    }
+    rex.setPatternOptions(QRegularExpression::MultilineOption);
+
+    QRegularExpressionMatchIterator it = rex.globalMatch(text);
+
+    ui->tableWidget_regex->setRowCount(0);
+    int count = 0;
+    QList<QPair<int, int>> highlightRanges;
+
+    while (it.hasNext()) {
+        QRegularExpressionMatch match = it.next();
+        
+        int groupIndex = (match.lastCapturedIndex() >= 1) ? 1 : 0;
+        
+        QString resultText = match.captured(groupIndex);
+        int pos = match.capturedStart(groupIndex);
+        int len = match.capturedLength(groupIndex);
+    
+        if (resultText.isEmpty() && len == 0) continue;
+    
+        int row = ui->tableWidget_regex->rowCount();
+        ui->tableWidget_regex->insertRow(row);
+    
+        highlightRanges.append({pos, len});
+    
+        int lineNum = text.left(pos).count('\n') + 1;
+        int lastNewLine = text.left(pos).lastIndexOf('\n');
+        int colNum = (lastNewLine == -1) ? pos + 1 : pos - lastNewLine;
+    
+        ui->tableWidget_regex->setItem(row, 0, new QTableWidgetItem(resultText)); 
+        ui->tableWidget_regex->setItem(row, 1, new QTableWidgetItem(QString("%1:%2").arg(lineNum).arg(colNum)));
+        ui->tableWidget_regex->setItem(row, 2, new QTableWidgetItem(QString::number(len)));
+    
+        ui->tableWidget_regex->item(row, 0)->setData(Qt::UserRole, pos);
+        count++;
+    }
+
+    editor->setRegexMatchHighlights(highlightRanges);
+
+    ui->statusbar->showMessage(QString("Найдено совпадений: %1").arg(count));
+}
+
+void MainWindow::on_tableWidget_regex_itemSelectionChanged() {
+    int row = ui->tableWidget_regex->currentRow();
+    if (row < 0) return;
+
+    int pos = ui->tableWidget_regex->item(row, 0)->data(Qt::UserRole).toInt();
+    int length = ui->tableWidget_regex->item(row, 2)->text().toInt();
+
+    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
+    if (editor) {
+        QTextCursor cursor = editor->textCursor();
+        cursor.setPosition(pos);
+        cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, length);
+
+        editor->setTextCursor(cursor);
+        editor->setFocus();
+    }
 }
 
 void MainWindow::on_tableWidget_cellDoubleClicked(int row) {
