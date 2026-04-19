@@ -157,6 +157,11 @@ void MainWindow::on_tableWidget_error_cellDoubleClicked(int row, int column)
     }
 }
 
+void MainWindow::on_tableWidget_error_cellClicked(int row, int column)
+{
+    on_tableWidget_error_cellDoubleClicked(row, column);
+}
+
 void MainWindow::on_tableWidget_cellDoubleClicked(int row) {
     QString location = ui->tableWidget->item(row, 3)->text();
 

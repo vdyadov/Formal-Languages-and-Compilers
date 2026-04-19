@@ -64,6 +64,7 @@ private slots:
     void on_action_run_triggered();
     void on_tableWidget_cellDoubleClicked(int row);
     void on_tableWidget_error_cellDoubleClicked(int row, int column);
+    void on_tableWidget_error_cellClicked(int row, int column);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

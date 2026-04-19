@@ -1,4 +1,7 @@
 #include "parser.h"
+#include <QSet>
+#include <QVector>
+#include <QStringList>
 
 Parser::Parser(const QList<Token> &tokens) : m_pos(0) {
     for (const auto &t : tokens) {
@@ -46,37 +49,91 @@ QList<SyntaxError> Parser::parse() {
     QVector<int> expectedCodes = {1, 3, 5, 2, 6, 7, 8};
     QStringList descriptions = {
         "Ожидалось 'Const'", "Ожидалось имя переменной", "Ожидалось ':'",
-        "Ожидалось 'string'", "Ожидалось '='", "Ожидалась строка", "Пропущена ';'"
+        "Ожидалось 'string'", "Ожидалось '='", "Ожидалась закрытие строки", "Пропущена ';'"
     };
 
     while (!isAtEnd()) {
         int lineStart = currentToken().line;
+        QVector<bool> stepReported(expectedCodes.size(), false);
+        QSet<int> tokenReportedCols;
 
-        for (int i = 0; i < expectedCodes.size(); ++i) {
+        auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
+            if (stepIdx < 0 || stepIdx >= stepReported.size()) return;
+            if (stepReported[stepIdx]) return;
+            const int col = (colOverride >= 0) ? colOverride : tok.startCol;
+            m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
+            stepReported[stepIdx] = true;
+        };
+
+        auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
+            if (tokenReportedCols.contains(tok.startCol)) return;
+            m_errors.append({tok.lexeme, tok.line, tok.startCol, desc});
+            tokenReportedCols.insert(tok.startCol);
+        };
+
+        int i = 0;
+        while (i < expectedCodes.size()) {
             int expected = expectedCodes[i];
 
             if (isAtEnd() || currentToken().line != lineStart) {
                 Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
-                m_errors.append({"", lineStart, lastT.endCol + 1, descriptions[i]});
+                if (!stepReported[i]) {
+                    m_errors.append({"", lineStart, lastT.endCol + 1, descriptions[i]});
+                    stepReported[i] = true;
+                }
+                i++;
                 continue;
             }
 
             Token t = currentToken();
 
+            if (t.code == -1) {
+                const bool isUnclosedString = t.lexeme.startsWith("Незакрытая строка:");
+
+                if (isUnclosedString) {
+                    const int valueStepIdx = expectedCodes.indexOf(7);
+                    if (valueStepIdx >= 0) {
+                        while (i < valueStepIdx) {
+                            reportStepOnce(i, t);
+                            i++;
+                        }
+                        reportStepOnce(valueStepIdx, t);
+                        m_pos++;
+                        i = valueStepIdx + 1;
+                        continue;
+                    }
+                }
+
+                reportTokenOnce(t, "Недопустимый символ");
+                m_pos++;
+                continue;
+            }
+
             if (t.code == expected) {
                 m_pos++;
-            } else {
-                m_errors.append({t.lexeme, t.line, t.startCol, descriptions[i]});
-
-                if (i + 1 < expectedCodes.size() && t.code == expectedCodes[i + 1]) {
-                } else {
-                    m_pos++;
-                }
+                i++;
+                continue;
             }
+
+            if (i + 1 < expectedCodes.size() && t.code == expectedCodes[i + 1]) {
+                reportStepOnce(i, t);
+                i++;
+                continue;
+            }
+
+            reportStepOnce(i, t);
+            m_pos++;
         }
 
         while (!isAtEnd() && currentToken().line == lineStart) {
-            m_errors.append({currentToken().lexeme, lineStart, currentToken().startCol, "Лишняя лексема"});
+            Token t = currentToken();
+            if (t.code == -1) {
+                if (!t.lexeme.startsWith("Незакрытая строка:")) {
+                    reportTokenOnce(t, "Лексическая ошибка");
+                }
+            } else {
+                reportTokenOnce(t, "Лишняя лексема");
+            }
             m_pos++;
         }
     }
