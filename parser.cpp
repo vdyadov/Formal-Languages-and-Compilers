@@ -21,121 +21,203 @@ const Token& Parser::currentToken() {
 
 bool Parser::isAtEnd() { return m_pos >= m_tokens.size(); }
 
-bool Parser::match(int expectedCode, const QString &errorDescription) {
-    if (!isAtEnd() && currentToken().code == expectedCode) {
+bool Parser::tryParseConstLine()
+{
+    if (isAtEnd())
+        return false;
+
+    const int savePos = m_pos;
+    const int lineStart = currentToken().line;
+
+    static const int chain[] = {1, 3, 5, 2, 6, 7, 8};
+    QVector<Token> captured;
+    captured.reserve(8);
+
+    for (int expected : chain) {
+        if (isAtEnd()) {
+            m_pos = savePos;
+            return false;
+        }
+        Token t = currentToken();
+        if (t.line != lineStart) {
+            m_pos = savePos;
+            return false;
+        }
+        if (t.code == -1) {
+            m_pos = savePos;
+            return false;
+        }
+        if (t.code != expected) {
+            m_pos = savePos;
+            return false;
+        }
+        captured.append(t);
         m_pos++;
+    }
+
+    const bool hasExtraOnLine = (!isAtEnd() && currentToken().line == lineStart);
+
+    if (!hasExtraOnLine) {
+        QString idLex = captured[1].lexeme;
+        QString value = captured[5].lexeme;
+        if (value.startsWith(QLatin1Char('\'')) && value.endsWith(QLatin1Char('\'')) && value.size() >= 2)
+            value = value.mid(1, value.size() - 2);
+
+        auto literal = std::make_unique<StringLiteralNode>(
+            SourcePos{captured[5].line, captured[5].startCol}, std::move(value));
+        auto strType = std::make_unique<StringTypeNode>(
+            SourcePos{captured[3].line, captured[3].startCol});
+        auto decl = std::make_unique<ConstDeclNode>(
+            SourcePos{captured[1].line, captured[1].startCol},
+            std::move(idLex),
+            std::move(strType),
+            std::move(literal));
+
+        if (!m_program)
+            m_program = std::make_unique<ProgramNode>();
+        m_program->declarations.push_back(std::move(decl));
+    }
+
+    if (!hasExtraOnLine)
         return true;
+
+    QSet<int> reportedCols;
+    while (!isAtEnd() && currentToken().line == lineStart) {
+        Token t = currentToken();
+        if (t.code == -1) {
+            if (!t.lexeme.startsWith(QLatin1String("Незакрытая строка:"))) {
+                if (!reportedCols.contains(t.startCol)) {
+                    m_errors.append({t.lexeme, t.line, t.startCol, QStringLiteral("Лексическая ошибка")});
+                    reportedCols.insert(t.startCol);
+                }
+            }
+        } else if (!reportedCols.contains(t.startCol)) {
+            m_errors.append({t.lexeme, t.line, t.startCol, QStringLiteral("Лишняя лексема")});
+            reportedCols.insert(t.startCol);
+        }
+        m_pos++;
     }
 
-    Token errorToken = currentToken();
-
-    if (expectedCode == 8 && m_pos > 0) {
-        Token prev = m_tokens.at(m_pos - 1);
-        m_errors.append({prev.lexeme, prev.line, prev.endCol + 1, errorDescription});
-    } else {
-        m_errors.append({errorToken.lexeme, errorToken.line, errorToken.startCol, errorDescription});
-    }
-
-    return false;
+    return true;
 }
 
-QList<SyntaxError> Parser::parse() {
-    m_errors.clear();
-    m_pos = 0;
-    if (m_tokens.isEmpty()) return m_errors;
-
-    enum State { CONST_ST, ID_ST, COLON_ST, TYPE_ST, EQUALS_ST, VALUE_ST, SEMI_ST, SYNC_ST };
-
+void Parser::parseLineWithErrors(int lineStart)
+{
     QVector<int> expectedCodes = {1, 3, 5, 2, 6, 7, 8};
     QStringList descriptions = {
-        "Ожидалось 'Const'", "Ожидалось имя переменной", "Ожидалось ':'",
-        "Ожидалось 'string'", "Ожидалось '='", "Ожидалась закрытие строки", "Пропущена ';'"
+        QStringLiteral("Ожидалось 'Const'"),
+        QStringLiteral("Ожидалось имя переменной"),
+        QStringLiteral("Ожидалось ':'"),
+        QStringLiteral("Ожидалось 'string'"),
+        QStringLiteral("Ожидалось '='"),
+        QStringLiteral("Ожидалась закрытие строки"),
+        QStringLiteral("Пропущена ';'")
     };
 
-    while (!isAtEnd()) {
-        int lineStart = currentToken().line;
-        QVector<bool> stepReported(expectedCodes.size(), false);
-        QSet<int> tokenReportedCols;
+    QVector<bool> stepReported(expectedCodes.size(), false);
+    QSet<int> tokenReportedCols;
 
-        auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
-            if (stepIdx < 0 || stepIdx >= stepReported.size()) return;
-            if (stepReported[stepIdx]) return;
-            const int col = (colOverride >= 0) ? colOverride : tok.startCol;
-            m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
-            stepReported[stepIdx] = true;
-        };
+    auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
+        if (stepIdx < 0 || stepIdx >= stepReported.size()) return;
+        if (stepReported[stepIdx]) return;
+        const int col = (colOverride >= 0) ? colOverride : tok.startCol;
+        m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
+        stepReported[stepIdx] = true;
+    };
 
-        auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
-            if (tokenReportedCols.contains(tok.startCol)) return;
-            m_errors.append({tok.lexeme, tok.line, tok.startCol, desc});
-            tokenReportedCols.insert(tok.startCol);
-        };
+    auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
+        if (tokenReportedCols.contains(tok.startCol)) return;
+        m_errors.append({tok.lexeme, tok.line, tok.startCol, desc});
+        tokenReportedCols.insert(tok.startCol);
+    };
 
-        int i = 0;
-        while (i < expectedCodes.size()) {
-            int expected = expectedCodes[i];
+    int i = 0;
+    while (i < expectedCodes.size()) {
+        int expected = expectedCodes[i];
 
-            if (isAtEnd() || currentToken().line != lineStart) {
-                Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
-                if (!stepReported[i]) {
-                    m_errors.append({"", lineStart, lastT.endCol + 1, descriptions[i]});
-                    stepReported[i] = true;
-                }
-                i++;
-                continue;
+        if (isAtEnd() || currentToken().line != lineStart) {
+            Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
+            if (!stepReported[i]) {
+                m_errors.append({QString(), lineStart, lastT.endCol + 1, descriptions[i]});
+                stepReported[i] = true;
             }
+            i++;
+            continue;
+        }
 
-            Token t = currentToken();
+        Token t = currentToken();
 
-            if (t.code == -1) {
-                const bool isUnclosedString = t.lexeme.startsWith("Незакрытая строка:");
+        if (t.code == -1) {
+            const bool isUnclosedString = t.lexeme.startsWith(QLatin1String("Незакрытая строка:"));
 
-                if (isUnclosedString) {
-                    const int valueStepIdx = expectedCodes.indexOf(7);
-                    if (valueStepIdx >= 0) {
-                        while (i < valueStepIdx) {
-                            reportStepOnce(i, t);
-                            i++;
-                        }
-                        reportStepOnce(valueStepIdx, t);
-                        m_pos++;
-                        i = valueStepIdx + 1;
-                        continue;
+            if (isUnclosedString) {
+                const int valueStepIdx = expectedCodes.indexOf(7);
+                if (valueStepIdx >= 0) {
+                    while (i < valueStepIdx) {
+                        reportStepOnce(i, t);
+                        i++;
                     }
+                    reportStepOnce(valueStepIdx, t);
+                    m_pos++;
+                    i = valueStepIdx + 1;
+                    continue;
                 }
-
-                reportTokenOnce(t, "Недопустимый символ");
-                m_pos++;
-                continue;
             }
 
-            if (t.code == expected) {
-                m_pos++;
-                i++;
-                continue;
-            }
+            reportTokenOnce(t, QStringLiteral("Недопустимый символ"));
+            m_pos++;
+            continue;
+        }
 
-            if (i + 1 < expectedCodes.size() && t.code == expectedCodes[i + 1]) {
-                reportStepOnce(i, t);
-                i++;
-                continue;
-            }
+        if (t.code == expected) {
+            m_pos++;
+            i++;
+            continue;
+        }
 
+        if (i + 1 < expectedCodes.size() && t.code == expectedCodes[i + 1]) {
             reportStepOnce(i, t);
-            m_pos++;
+            i++;
+            continue;
         }
 
-        while (!isAtEnd() && currentToken().line == lineStart) {
-            Token t = currentToken();
-            if (t.code == -1) {
-                if (!t.lexeme.startsWith("Незакрытая строка:")) {
-                    reportTokenOnce(t, "Лексическая ошибка");
-                }
-            } else {
-                reportTokenOnce(t, "Лишняя лексема");
-            }
-            m_pos++;
-        }
+        reportStepOnce(i, t);
+        m_pos++;
     }
+
+    while (!isAtEnd() && currentToken().line == lineStart) {
+        Token t = currentToken();
+        if (t.code == -1) {
+            if (!t.lexeme.startsWith(QLatin1String("Незакрытая строка:"))) {
+                reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
+            }
+        } else {
+            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
+        }
+        m_pos++;
+    }
+}
+
+QList<SyntaxError> Parser::parse()
+{
+    m_errors.clear();
+    m_pos = 0;
+    m_program = std::make_unique<ProgramNode>();
+
+    if (m_tokens.isEmpty())
+        return m_errors;
+
+    while (!isAtEnd()) {
+        if (tryParseConstLine())
+            continue;
+        const int lineStart = currentToken().line;
+        parseLineWithErrors(lineStart);
+    }
+
     return m_errors;
+}
+
+std::unique_ptr<ProgramNode> Parser::takeProgram()
+{
+    return std::move(m_program);
 }

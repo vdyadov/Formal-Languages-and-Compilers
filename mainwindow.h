@@ -33,6 +33,9 @@ public:
 
 private:
     Ui::MainWindow *ui;
+    QString m_lastAstTree;
+    QString m_lastAstJson;
+    void refreshAstOutput();
     CodeEditor* currentEditor();
     bool maybeSave(CodeEditor *editor);
     bool saveFile(CodeEditor *editor, const QString &path = "");
@@ -66,6 +69,8 @@ private slots:
     void on_tableWidget_cellDoubleClicked(int row);
     void on_tableWidget_error_cellDoubleClicked(int row, int column);
     void on_tableWidget_error_cellClicked(int row, int column);
+    void on_tableWidget_semantic_cellDoubleClicked(int row, int column);
+    void on_tableWidget_semantic_cellClicked(int row, int column);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

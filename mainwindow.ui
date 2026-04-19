@@ -113,6 +113,33 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_semantic">
+       <attribute name="title">
+        <string>Семантика</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_semantic">
+        <item row="0" column="0">
+         <widget class="QTableWidget" name="tableWidget_semantic"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_ast">
+       <attribute name="title">
+        <string>AST</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_ast">
+        <item row="0" column="0">
+         <widget class="QComboBox" name="comboBox_astFormat"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPlainTextEdit" name="plainTextEdit_ast">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="tab_4">
        <attribute name="title">
         <string>Регулярные выражения</string>

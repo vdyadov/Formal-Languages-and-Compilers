@@ -1,6 +1,59 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <QGridLayout>
+#include <QJsonDocument>
+#include <QFont>
+#include <QFontDatabase>
+
+#include "ast.h"
+#include "semantic.h"
+
+#include <memory>
+
+#include <QRegularExpression>
+#include <QTableWidget>
+#include <QTextBlock>
+
+namespace {
+
+static void jumpToErrorLocation(QTableWidget *table, int row, int tabWidgetCol, QWidget *editorTabWidget)
+{
+    if (!table || row < 0 || !editorTabWidget)
+        return;
+
+    QTableWidgetItem *item = table->item(row, tabWidgetCol);
+    if (!item)
+        return;
+
+    QString locText = item->text();
+
+    static QRegularExpression re("(\\d+)");
+    QRegularExpressionMatchIterator i = re.globalMatch(locText);
+
+    QList<int> coords;
+    while (i.hasNext())
+        coords << i.next().captured(1).toInt();
+
+    if (coords.size() < 2)
+        return;
+
+    const int targetLine = coords[0];
+    const int targetCol = coords[1];
+
+    CodeEditor *editor = qobject_cast<CodeEditor *>(editorTabWidget);
+    if (!editor)
+        return;
+
+    QTextBlock block = editor->document()->findBlockByLineNumber(targetLine - 1);
+    QTextCursor cursor(block);
+    cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, targetCol - 1);
+    editor->setTextCursor(cursor);
+    editor->setFocus();
+}
+
+} // namespace
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -74,6 +127,25 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget_regex->setColumnCount(3);
     ui->tableWidget_regex->setHorizontalHeaderLabels({"Подстрока", "Позиция (Стр:Сим)", "Длина"});
     ui->tableWidget_regex->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_semantic->setColumnCount(3);
+    ui->tableWidget_semantic->setHorizontalHeaderLabels({"Фрагмент", "Местоположение", "Описание"});
+    ui->tableWidget_semantic->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->comboBox_astFormat->clear();
+    ui->comboBox_astFormat->addItem(QStringLiteral("Дерево"));
+    ui->comboBox_astFormat->addItem(QStringLiteral("JSON"));
+
+    QFont mono(QStringLiteral("Consolas"));
+    if (!mono.exactMatch())
+        mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    ui->plainTextEdit_ast->setFont(mono);
+
+    if (ui->gridLayout_ast)
+        ui->gridLayout_ast->setRowStretch(1, 1);
+
+    connect(ui->comboBox_astFormat, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, &MainWindow::refreshAstOutput);
 }
 
 void MainWindow::on_action_run_triggered() {
@@ -97,6 +169,9 @@ void MainWindow::on_action_run_triggered() {
 
     Parser parser(tokens);
     QList<SyntaxError> errors = parser.parse();
+    std::unique_ptr<ProgramNode> rawAst = parser.takeProgram();
+
+    SemanticAnalyzer::Result semantic = SemanticAnalyzer::analyze(std::move(rawAst));
 
     ui->tableWidget_error->setRowCount(0);
 
@@ -115,8 +190,32 @@ void MainWindow::on_action_run_triggered() {
         }
     }
 
-    // Вывод в StatusBar
-    statusBar()->showMessage(QString("Анализ завершен. Найдено ошибок: %1").arg(errors.size()));
+    ui->tableWidget_semantic->setRowCount(0);
+    if (semantic.errors.isEmpty()) {
+        ui->tableWidget_semantic->insertRow(0);
+        ui->tableWidget_semantic->setItem(0, 2, new QTableWidgetItem(QStringLiteral("Семантических ошибок нет!")));
+    } else {
+        for (const auto &err : std::as_const(semantic.errors)) {
+            int row = ui->tableWidget_semantic->rowCount();
+            ui->tableWidget_semantic->insertRow(row);
+            ui->tableWidget_semantic->setItem(row, 0, new QTableWidgetItem(err.fragment));
+            ui->tableWidget_semantic->setItem(row, 1, new QTableWidgetItem(QStringLiteral("Стр %1, Поз %2").arg(err.line).arg(err.col)));
+            ui->tableWidget_semantic->setItem(row, 2, new QTableWidgetItem(err.description));
+        }
+    }
+
+    if (semantic.program) {
+        m_lastAstTree = formatTree(*semantic.program);
+        m_lastAstJson = QString::fromUtf8(QJsonDocument(toJson(*semantic.program)).toJson(QJsonDocument::Indented));
+    } else {
+        m_lastAstTree.clear();
+        m_lastAstJson.clear();
+    }
+    refreshAstOutput();
+
+    statusBar()->showMessage(QStringLiteral("Синтаксических ошибок: %1. Семантических ошибок: %2.")
+                                 .arg(errors.size())
+                                 .arg(semantic.errors.size()));
 
     // Добавляем финальную строку в таблицу
     // int lastRow = ui->tableWidget_error->rowCount();
@@ -136,42 +235,34 @@ void MainWindow::on_action_run_triggered() {
 
 void MainWindow::on_tableWidget_error_cellDoubleClicked(int row, int column)
 {
-    if (row >= ui->tableWidget_error->rowCount() - 1) return;
-
-    QTableWidgetItem *item = ui->tableWidget_error->item(row, 1);
-    if (!item) return;
-
-    QString locText = item->text();
-
-    static QRegularExpression re("(\\d+)");
-    QRegularExpressionMatchIterator i = re.globalMatch(locText);
-
-    QList<int> coords;
-    while (i.hasNext()) {
-        coords << i.next().captured(1).toInt();
-    }
-
-    if (coords.size() < 2) return;
-
-    int targetLine = coords[0];
-    int targetCol = coords[1];
-
-    CodeEditor *editor = qobject_cast<CodeEditor*>(ui->tabWidget->currentWidget());
-    if (editor) {
-        QTextBlock block = editor->document()->findBlockByLineNumber(targetLine - 1);
-
-        QTextCursor cursor(block);
-
-        cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, targetCol - 1);
-
-        editor->setTextCursor(cursor);
-        editor->setFocus();
-    }
+    Q_UNUSED(column);
+    jumpToErrorLocation(ui->tableWidget_error, row, 1, ui->tabWidget->currentWidget());
 }
 
 void MainWindow::on_tableWidget_error_cellClicked(int row, int column)
 {
+    Q_UNUSED(column);
     on_tableWidget_error_cellDoubleClicked(row, column);
+}
+
+void MainWindow::refreshAstOutput()
+{
+    if (ui->comboBox_astFormat->currentIndex() == 1)
+        ui->plainTextEdit_ast->setPlainText(m_lastAstJson);
+    else
+        ui->plainTextEdit_ast->setPlainText(m_lastAstTree);
+}
+
+void MainWindow::on_tableWidget_semantic_cellDoubleClicked(int row, int column)
+{
+    Q_UNUSED(column);
+    jumpToErrorLocation(ui->tableWidget_semantic, row, 1, ui->tabWidget->currentWidget());
+}
+
+void MainWindow::on_tableWidget_semantic_cellClicked(int row, int column)
+{
+    Q_UNUSED(column);
+    on_tableWidget_semantic_cellDoubleClicked(row, column);
 }
 
 QList<SearchResult> findIdentifierCustom(const QString &text) {
