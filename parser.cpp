@@ -3,13 +3,6 @@
 #include <QVector>
 #include <QStringList>
 
-namespace {
-static bool lexemeIsUnclosedStringError(const QString &lexeme)
-{
-    return lexeme.startsWith(QStringLiteral("Незакрытая строка:"));
-}
-} // namespace
-
 Parser::Parser(const QList<Token> &tokens) : m_pos(0) {
     for (const auto &t : tokens) {
         if (t.code != 4) m_tokens.append(t);
@@ -189,7 +182,6 @@ void Parser::parseLineWithErrors(int lineStart)
         }
         return cols;
     };
-
     auto reportInvalidSinglesInRange = [&](int fromInclusive, int toExclusive) {
         for (int q = fromInclusive; q < toExclusive && q < m_tokens.size(); ++q) {
             const Token &sk = m_tokens.at(q);
@@ -197,7 +189,7 @@ void Parser::parseLineWithErrors(int lineStart)
                 break;
             if (sk.code == -1 && sk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(sk.lexeme))
                 reportTokenOnce(sk, (sk.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
-                                                                       : QStringLiteral("Лексическая ошибка"));
+                                                                       : QStringLiteral("Недопустимый символ"));
         }
     };
 
@@ -335,7 +327,6 @@ void Parser::parseLineWithErrors(int lineStart)
 
     bool unclosedStringOnLine = false;
     bool constMatchedOnLine = false;
-
     int i = 0;
     while (i < expectedCodes.size()) {
         int expected = expectedCodes[i];
@@ -531,7 +522,6 @@ void Parser::parseLineWithErrors(int lineStart)
             m_pos++;
             continue;
         }
-
         reportStepOnce(i, t);
         m_pos++;
     }
@@ -541,7 +531,8 @@ void Parser::parseLineWithErrors(int lineStart)
         if (!unclosedStringOnLine) {
             if (t.code == -1) {
                 if (!lexemeIsUnclosedStringError(t.lexeme)) {
-                    reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
+                    reportTokenOnce(t, (t.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
+                                                                         : QStringLiteral("Недопустимый символ"));
                 }
             } else {
                 reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
