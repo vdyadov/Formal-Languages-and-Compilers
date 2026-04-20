@@ -3,6 +3,18 @@
 
 #include <QString>
 
+// Prefix of lexeme for unclosed string error tokens (lexer + parser must match).
+inline const QString &unclosedStringLexemePrefix()
+{
+    static const QString k = QStringLiteral("Незакрытая строка: ");
+    return k;
+}
+
+inline bool lexemeIsUnclosedStringError(const QString &lexeme)
+{
+    return lexeme.startsWith(unclosedStringLexemePrefix());
+}
+
 struct Token {
     int code;
     QString typeName;

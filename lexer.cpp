@@ -57,7 +57,8 @@ QList<Token> Lexer::tokenize(const QString &source) {
             }
 
             if (!closed) {
-                tokens.append(Token(-1, "ОШИБКА", "Незакрытая строка: " + val, line, startCol, column));
+                // Префикс совпадает с lexemeIsUnclosedStringError в token.h — парсер использует те же правила.
+                tokens.append(Token(-1, "ОШИБКА", unclosedStringLexemePrefix() + val, line, startCol, column));
             }
             continue;
         }

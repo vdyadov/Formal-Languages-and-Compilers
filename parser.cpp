@@ -85,7 +85,7 @@ bool Parser::tryParseConstLine()
     while (!isAtEnd() && currentToken().line == lineStart) {
         Token t = currentToken();
         if (t.code == -1) {
-            if (!t.lexeme.startsWith(QLatin1String("Незакрытая строка:"))) {
+            if (!lexemeIsUnclosedStringError(t.lexeme)) {
                 if (!reportedCols.contains(t.startCol)) {
                     m_errors.append({t.lexeme, t.line, t.startCol, QStringLiteral("Лексическая ошибка")});
                     reportedCols.insert(t.startCol);
@@ -131,6 +131,105 @@ void Parser::parseLineWithErrors(int lineStart)
         tokenReportedCols.insert(tok.startCol);
     };
 
+    auto reportInvalidSinglesInRange = [&](int fromInclusive, int toExclusive) {
+        for (int q = fromInclusive; q < toExclusive && q < m_tokens.size(); ++q) {
+            const Token &sk = m_tokens.at(q);
+            if (sk.line != lineStart)
+                break;
+            if (sk.code == -1 && sk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(sk.lexeme))
+                reportTokenOnce(sk, QStringLiteral("Недопустимый символ"));
+        }
+    };
+
+    auto isJunkFragmentToken = [](const Token &tk) -> bool {
+        if (tk.code == 3)
+            return true;
+        if (tk.code == -1 && tk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(tk.lexeme))
+            return true;
+        return false;
+    };
+
+    auto tryStructuralSyncOnLine = [&](int stepIdx, const Token &curTok, int &i) -> bool {
+        if (stepIdx < 0 || stepIdx >= expectedCodes.size())
+            return false;
+        const int want = expectedCodes[stepIdx];
+        static const QSet<int> recoverableWants{2, 5, 6, 7, 8};
+        if (!recoverableWants.contains(want))
+            return false;
+        if (curTok.code != 3)
+            return false;
+
+        int foundWant = -1;
+        for (int q = m_pos + 1; q < m_tokens.size(); ++q) {
+            const Token &tk = m_tokens.at(q);
+            if (tk.line != lineStart)
+                break;
+            if (tk.code == want) {
+                foundWant = q;
+                break;
+            }
+            if (!isJunkFragmentToken(tk))
+                break;
+        }
+        if (foundWant >= 0) {
+            reportInvalidSinglesInRange(m_pos + 1, foundWant);
+            m_pos = foundWant;
+            return true;
+        }
+
+        if (want == 5) {
+            int eqIdx = -1;
+            for (int q = m_pos + 1; q < m_tokens.size(); ++q) {
+                const Token &tk = m_tokens.at(q);
+                if (tk.line != lineStart)
+                    break;
+                if (tk.code == 5)
+                    break;
+                if (tk.code == 6) {
+                    eqIdx = q;
+                    break;
+                }
+                if (!isJunkFragmentToken(tk))
+                    break;
+            }
+            if (eqIdx >= 0) {
+                reportStepOnce(stepIdx, curTok);
+                if (stepIdx + 1 < stepReported.size())
+                    stepReported[stepIdx + 1] = true;
+                reportInvalidSinglesInRange(m_pos + 1, eqIdx);
+                m_pos = eqIdx;
+                i = stepIdx + 2;
+                return true;
+            }
+        }
+
+        if (want == 2) {
+            int eqIdx = -1;
+            for (int q = m_pos + 1; q < m_tokens.size(); ++q) {
+                const Token &tk = m_tokens.at(q);
+                if (tk.line != lineStart)
+                    break;
+                if (tk.code == 2)
+                    break;
+                if (tk.code == 6) {
+                    eqIdx = q;
+                    break;
+                }
+                if (!isJunkFragmentToken(tk))
+                    break;
+            }
+            if (eqIdx >= 0) {
+                reportStepOnce(stepIdx, curTok);
+                reportInvalidSinglesInRange(m_pos + 1, eqIdx);
+                m_pos = eqIdx;
+                i = stepIdx + 1;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     int i = 0;
     while (i < expectedCodes.size()) {
         int expected = expectedCodes[i];
@@ -148,15 +247,11 @@ void Parser::parseLineWithErrors(int lineStart)
         Token t = currentToken();
 
         if (t.code == -1) {
-            const bool isUnclosedString = t.lexeme.startsWith(QLatin1String("Незакрытая строка:"));
-
-            if (isUnclosedString) {
+            if (lexemeIsUnclosedStringError(t.lexeme)) {
                 const int valueStepIdx = expectedCodes.indexOf(7);
                 if (valueStepIdx >= 0) {
-                    while (i < valueStepIdx) {
-                        reportStepOnce(i, t);
-                        i++;
-                    }
+                    for (int s = 0; s < valueStepIdx; ++s)
+                        stepReported[s] = true;
                     reportStepOnce(valueStepIdx, t);
                     m_pos++;
                     i = valueStepIdx + 1;
@@ -181,6 +276,9 @@ void Parser::parseLineWithErrors(int lineStart)
             continue;
         }
 
+        if (tryStructuralSyncOnLine(i, t, i))
+            continue;
+
         reportStepOnce(i, t);
         m_pos++;
     }
@@ -188,7 +286,7 @@ void Parser::parseLineWithErrors(int lineStart)
     while (!isAtEnd() && currentToken().line == lineStart) {
         Token t = currentToken();
         if (t.code == -1) {
-            if (!t.lexeme.startsWith(QLatin1String("Незакрытая строка:"))) {
+            if (!lexemeIsUnclosedStringError(t.lexeme)) {
                 reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
             }
         } else {
