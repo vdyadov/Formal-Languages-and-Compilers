@@ -25,42 +25,92 @@ static QJsonObject posJson(const SourcePos &p)
     return o;
 }
 
+static QString escapeForDoubleQuotes(QString s)
+{
+    s.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    s.replace(QLatin1Char('\"'), QStringLiteral("\\\""));
+    s.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
+    s.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
+    s.replace(QLatin1Char('\t'), QStringLiteral("\\t"));
+    return s;
+}
+
+static QString escapeForSingleQuotes(QString s)
+{
+    s.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    s.replace(QLatin1Char('\''), QStringLiteral("\\'"));
+    s.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
+    s.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
+    s.replace(QLatin1Char('\t'), QStringLiteral("\\t"));
+    return s;
+}
+
+static void appendBranchLine(QString &out, const QString &prefix, bool isLast, const QString &text)
+{
+    out += prefix;
+    out += isLast ? QStringLiteral("└── ") : QStringLiteral("├── ");
+    out += text;
+    out += QLatin1Char('\n');
+}
+
+static QString childPrefix(const QString &prefix, bool parentIsLast)
+{
+    return prefix + (parentIsLast ? QStringLiteral("    ") : QStringLiteral("│   "));
+}
+
 } // namespace
 
 QString formatTree(const ProgramNode &program)
 {
     QString out;
-    out += QStringLiteral("Program\n");
+    out += QStringLiteral("ProgramNode\n");
 
     const int n = static_cast<int>(program.declarations.size());
     if (n == 0) {
-        out += QStringLiteral("└── (пусто)\n");
+        appendBranchLine(out, QString(), true, QStringLiteral("declarations: []"));
         return out;
     }
 
+    // declarations: [...]
+    appendBranchLine(out, QString(), true, QStringLiteral("declarations:"));
+    const QString declsPrefix = childPrefix(QString(), true);
+
     for (int i = 0; i < n; ++i) {
         const bool lastDecl = (i == n - 1);
-        const QString pre = QString();
-        const QString declPre = pre + (lastDecl ? QStringLiteral("└── ") : QStringLiteral("├── "));
         const ConstDeclNode &d = *program.declarations[static_cast<size_t>(i)];
 
-        out += declPre;
-        out += QStringLiteral("ConstDecl (%1)\n").arg(d.name);
+        // [i]: ConstDeclNode
+        appendBranchLine(out, declsPrefix, lastDecl,
+                         QStringLiteral("[%1]: ConstDeclNode").arg(i));
 
-        const QString childIndent = pre + (lastDecl ? QStringLiteral("    ") : QStringLiteral("│   "));
-        if (d.typeNode && d.literal) {
-            out += childIndent;
-            out += QStringLiteral("├── StringType\n");
-            const QString litEsc = d.literal->value;
-            out += childIndent;
-            out += QStringLiteral("└── StringLiteral \"%1\"\n").arg(litEsc);
-        } else if (d.typeNode) {
-            out += childIndent;
-            out += QStringLiteral("└── StringType\n");
-        } else if (d.literal) {
-            const QString litEsc = d.literal->value;
-            out += childIndent;
-            out += QStringLiteral("└── StringLiteral \"%1\"\n").arg(litEsc);
+        const QString declPrefix = childPrefix(declsPrefix, lastDecl);
+
+        // ├── name: "..."
+        appendBranchLine(out, declPrefix, false,
+                         QStringLiteral("name: \"%1\"").arg(escapeForDoubleQuotes(d.name)));
+
+        // ├── modifiers: ["const"]
+        appendBranchLine(out, declPrefix, false,
+                         QStringLiteral("modifiers: [\"const\"]"));
+
+        // ├── type: TypeNode
+        const bool hasType = static_cast<bool>(d.typeNode);
+        const bool hasValue = static_cast<bool>(d.literal);
+
+        if (hasType) {
+            appendBranchLine(out, declPrefix, !hasValue,
+                             QStringLiteral("type: TypeNode"));
+
+            const QString typePrefix = childPrefix(declPrefix, !hasValue);
+            appendBranchLine(out, typePrefix, true, QStringLiteral("name: \"string\""));
+        }
+
+        if (hasValue) {
+            appendBranchLine(out, declPrefix, true,
+                             QStringLiteral("value: StringLiteralNode"));
+            const QString valuePrefix = childPrefix(declPrefix, true);
+            appendBranchLine(out, valuePrefix, true,
+                             QStringLiteral("value: '%1'").arg(escapeForSingleQuotes(d.literal->value)));
         }
     }
 
