@@ -109,8 +109,7 @@ void Parser::parseLineWithErrors(int lineStart)
     };
 
     auto shouldReportStep = [&](int stepIdx) -> bool {
-        (void)stepIdx;
-        return true;
+        return stepIdx != 1;
     };
 
     auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
@@ -120,6 +119,13 @@ void Parser::parseLineWithErrors(int lineStart)
         const int col = (colOverride >= 0) ? colOverride : tok.startCol;
         addOrMergeErrorAt(tok.lexeme, tok.line, col, descriptions[stepIdx]);
         stepReported[stepIdx] = true;
+    };
+
+    auto reportStepForced = [&](int stepIdx, const Token &tok, int colOverride = -1) {
+        if (stepIdx < 0 || stepIdx >= descriptions.size()) return;
+        if (!shouldReportStep(stepIdx)) return;
+        const int col = (colOverride >= 0) ? colOverride : tok.startCol;
+        m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
     };
 
     auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
@@ -190,7 +196,8 @@ void Parser::parseLineWithErrors(int lineStart)
             if (sk.line != lineStart)
                 break;
             if (sk.code == -1 && sk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(sk.lexeme))
-                reportTokenOnce(sk, QStringLiteral("Лексическая ошибка"));
+                reportTokenOnce(sk, (sk.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
+                                                                       : QStringLiteral("Лексическая ошибка"));
         }
     };
 
@@ -352,6 +359,12 @@ void Parser::parseLineWithErrors(int lineStart)
             continue;
         }
 
+        if (expected == 2 && t.code == 5) {
+            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
+            m_pos++;
+            continue;
+        }
+
         // Два идентификатора подряд до ':' — имя переменной должно быть одно; второй лишний (пробел в имени).
         if (i == 2 && expected == 5 && t.code == 3 && m_pos > 0) {
             const Token &prev = m_tokens.at(m_pos - 1);
@@ -405,12 +418,6 @@ void Parser::parseLineWithErrors(int lineStart)
             continue;
         }
 
-        if (expected == 2 && t.code == 5) {
-            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
-            m_pos++;
-            continue;
-        }
-
         // Broken identifier word like "Str$ka" (between Const and ':') should become:
         // "Ожидалось имя переменной (Лексическая ошибка)".
         if (i == 1 && expected == 3 && t.code == 3) {
@@ -452,14 +459,32 @@ void Parser::parseLineWithErrors(int lineStart)
         if (t.code == -1) {
             if (lexemeIsUnclosedStringError(t.lexeme)) {
                 unclosedStringOnLine = true;
-                reportTokenOnce(t, QStringLiteral("Не закрытая строка"));
+
+                // Make the unclosed-string message the primary one for this line.
+                for (int k = m_errors.size() - 1; k >= 0; --k) {
+                    if (m_errors[k].line != lineStart)
+                        continue;
+                    const QString &d = m_errors[k].description;
+                    if (d.startsWith(QStringLiteral("Ожидалось")) ||
+                        d == QStringLiteral("Ожидалась закрытие строки") ||
+                        d == QStringLiteral("Пропущена ';'")) {
+                        m_errors.removeAt(k);
+                    }
+                }
+                for (int s = 0; s < stepReported.size(); ++s)
+                    stepReported[s] = true;
+
+                reportStepForced(5, t);
+                if (!hasExpectedLaterOnLine(8))
+                    addOrMergeErrorAt(QString(), lineStart, t.endCol + 1, descriptions[6]);
+
                 m_pos++;
-                // Шаг с `;` — последний в цепочке (индекс 6).
-                i = 6;
+                i = expectedCodes.size();
                 continue;
             }
 
-            reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
+            reportTokenOnce(t, (t.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
+                                                                 : QStringLiteral("Лексическая ошибка"));
             if (!hasExpectedLaterOnLine(expected)) {
                 reportStepOnce(i, t);
             } else {
