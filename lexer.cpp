@@ -40,8 +40,20 @@ QList<Token> Lexer::tokenize(const QString &source) {
 
         if (ch == '\'') {
             int startCol = column;
-            QString val = "'";
             pos++; column++;
+            int look = pos;
+            while (look < source.length() && (source[look] == ' ' || source[look] == '\t'))
+                ++look;
+            const bool beforeLineEnd = (look >= source.length() || source[look] == '\n');
+            const bool beforeSemicolon = (look < source.length() && source[look] == ';');
+            const bool semicolonImmediatelyClosed =
+                (beforeSemicolon && (look + 1 < source.length()) && source[look + 1] == '\'');
+            if ((beforeSemicolon && !semicolonImmediatelyClosed) || beforeLineEnd) {
+                tokens.append(Token(-1, "ОШИБКА", QStringLiteral("'"), line, startCol, startCol));
+                continue;
+            }
+
+            QString val = "'";
             bool closed = false;
 
             while (pos < source.length() && source[pos] != '\'' && source[pos] != '\n') {

@@ -117,12 +117,24 @@ void Parser::parseLineWithErrors(int lineStart)
     QVector<bool> stepReported(expectedCodes.size(), false);
     QSet<int> tokenReportedCols;
 
+    auto shouldReportStep = [&](int stepIdx) -> bool {
+        return stepIdx != 1;
+    };
+
     auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
         if (stepIdx < 0 || stepIdx >= stepReported.size()) return;
+        if (!shouldReportStep(stepIdx)) return;
         if (stepReported[stepIdx]) return;
         const int col = (colOverride >= 0) ? colOverride : tok.startCol;
         m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
         stepReported[stepIdx] = true;
+    };
+
+    auto reportStepForced = [&](int stepIdx, const Token &tok, int colOverride = -1) {
+        if (stepIdx < 0 || stepIdx >= descriptions.size()) return;
+        if (!shouldReportStep(stepIdx)) return;
+        const int col = (colOverride >= 0) ? colOverride : tok.startCol;
+        m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
     };
 
     auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
@@ -137,7 +149,8 @@ void Parser::parseLineWithErrors(int lineStart)
             if (sk.line != lineStart)
                 break;
             if (sk.code == -1 && sk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(sk.lexeme))
-                reportTokenOnce(sk, QStringLiteral("Недопустимый символ"));
+                reportTokenOnce(sk, (sk.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
+                                                                       : QStringLiteral("Лексическая ошибка"));
         }
     };
 
@@ -230,13 +243,59 @@ void Parser::parseLineWithErrors(int lineStart)
         return false;
     };
 
+    auto hasExpectedLaterOnLine = [&](int expectedCode) -> bool {
+        for (int q = m_pos + 1; q < m_tokens.size(); ++q) {
+            const Token &tk = m_tokens.at(q);
+            if (tk.line != lineStart)
+                break;
+            if (tk.code == expectedCode)
+                return true;
+        }
+        return false;
+    };
+
+    auto findFirstIdentifierBefore = [&](int stopCode) -> const Token* {
+        for (int q = m_pos + 1; q < m_tokens.size(); ++q) {
+            const Token &tk = m_tokens.at(q);
+            if (tk.line != lineStart)
+                break;
+            if (tk.code == stopCode)
+                break;
+            if (tk.code == 3)
+                return &m_tokens[q];
+        }
+        return nullptr;
+    };
+
+    auto findFirstIdentifierAfterGapBefore = [&](int stopCode) -> const Token* {
+        int prevEnd = -1000000;
+        for (int q = 0; q < m_tokens.size(); ++q) {
+            const Token &tk = m_tokens.at(q);
+            if (tk.line != lineStart)
+                continue;
+            if (q < m_pos)
+                continue;
+            if (tk.code == stopCode)
+                break;
+            if (tk.code == 3) {
+                if (tk.startCol > prevEnd + 1)
+                    return &m_tokens[q];
+            }
+            prevEnd = tk.endCol;
+        }
+        return nullptr;
+    };
+
+    bool unclosedStringOnLine = false;
+    bool constMatchedOnLine = false;
+
     int i = 0;
     while (i < expectedCodes.size()) {
         int expected = expectedCodes[i];
 
         if (isAtEnd() || currentToken().line != lineStart) {
             Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
-            if (!stepReported[i]) {
+            if (!stepReported[i] && shouldReportStep(i)) {
                 m_errors.append({QString(), lineStart, lastT.endCol + 1, descriptions[i]});
                 stepReported[i] = true;
             }
@@ -246,25 +305,58 @@ void Parser::parseLineWithErrors(int lineStart)
 
         Token t = currentToken();
 
+        if (expected == 2 && t.code == 5) {
+            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
+            m_pos++;
+            continue;
+        }
+
         if (t.code == -1) {
             if (lexemeIsUnclosedStringError(t.lexeme)) {
-                const int valueStepIdx = expectedCodes.indexOf(7);
-                if (valueStepIdx >= 0) {
-                    for (int s = 0; s < valueStepIdx; ++s)
-                        stepReported[s] = true;
-                    reportStepOnce(valueStepIdx, t);
-                    m_pos++;
-                    i = valueStepIdx + 1;
-                    continue;
+                unclosedStringOnLine = true;
+                for (int k = m_errors.size() - 1; k >= 0; --k) {
+                    if (m_errors[k].line != lineStart)
+                        continue;
+                    const QString &d = m_errors[k].description;
+                    if (d.startsWith(QStringLiteral("Ожидалось")) ||
+                        d == QStringLiteral("Ожидалась закрытие строки") ||
+                        d == QStringLiteral("Пропущена ';'")) {
+                        m_errors.removeAt(k);
+                    }
                 }
+                for (int s = 0; s < stepReported.size(); ++s)
+                    stepReported[s] = true;
+                reportStepForced(5, t);
+                if (!hasExpectedLaterOnLine(8))
+                    m_errors.append({QString(), lineStart, t.endCol + 1, descriptions[6]});
+                m_pos++;
+                i = expectedCodes.size();
+                continue;
             }
 
-            reportTokenOnce(t, QStringLiteral("Недопустимый символ"));
+            reportTokenOnce(t, (t.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
+                                                                 : QStringLiteral("Лексическая ошибка"));
+            if (!hasExpectedLaterOnLine(expected)) {
+                reportStepOnce(i, t);
+            } else {
+                if (expected == 5) {
+                    const Token *idTok = findFirstIdentifierAfterGapBefore(5);
+                    if (!idTok)
+                        idTok = findFirstIdentifierBefore(5);
+                    if (idTok && (!constMatchedOnLine || idTok->startCol > t.startCol)) {
+                        reportStepOnce(1, *idTok);
+                    } else {
+                        reportStepOnce(1, t);
+                    }
+                }
+            }
             m_pos++;
             continue;
         }
 
         if (t.code == expected) {
+            if (i == 0 && expected == 1)
+                constMatchedOnLine = true;
             m_pos++;
             i++;
             continue;
@@ -279,18 +371,32 @@ void Parser::parseLineWithErrors(int lineStart)
         if (tryStructuralSyncOnLine(i, t, i))
             continue;
 
+        if (hasExpectedLaterOnLine(expected)) {
+            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
+            m_pos++;
+            continue;
+        }
+
+        if (expected == 8 && t.code != 8) {
+            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
+            m_pos++;
+            continue;
+        }
+
         reportStepOnce(i, t);
         m_pos++;
     }
 
     while (!isAtEnd() && currentToken().line == lineStart) {
         Token t = currentToken();
-        if (t.code == -1) {
-            if (!lexemeIsUnclosedStringError(t.lexeme)) {
-                reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
+        if (!unclosedStringOnLine) {
+            if (t.code == -1) {
+                if (!lexemeIsUnclosedStringError(t.lexeme)) {
+                    reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
+                }
+            } else {
+                reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
             }
-        } else {
-            reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
         }
         m_pos++;
     }
