@@ -116,9 +116,56 @@ void Parser::parseLineWithErrors(int lineStart)
 
     QVector<bool> stepReported(expectedCodes.size(), false);
     QSet<int> tokenReportedCols;
+    QSet<int> suppressedLexCols;
+
+    auto mergeDescriptions = [&](const QString &a, const QString &b) -> QString {
+        if (a == b)
+            return a;
+
+        const bool aIsPrimary = a.startsWith(QStringLiteral("Ожидалось")) || a.startsWith(QStringLiteral("Пропущена"))
+            || a.startsWith(QStringLiteral("Лишний идентификатор"));
+        const bool bIsPrimary = b.startsWith(QStringLiteral("Ожидалось")) || b.startsWith(QStringLiteral("Пропущена"))
+            || b.startsWith(QStringLiteral("Лишний идентификатор"));
+
+        QString base = a;
+        QString detail = b;
+        if (!aIsPrimary && bIsPrimary) {
+            base = b;
+            detail = a;
+        }
+
+        if (base.contains(QStringLiteral(" ("))) {
+            // Already has details.
+            int open = base.lastIndexOf(QStringLiteral(" ("));
+            int close = base.endsWith(QLatin1Char(')')) ? base.size() - 1 : -1;
+            if (open >= 0 && close > open) {
+                const QString prefix = base.left(open);
+                const QString inside = base.mid(open + 2, close - (open + 2));
+                if (inside.split(QStringLiteral(", ")).contains(detail))
+                    return base;
+                return prefix + QStringLiteral(" (") + inside + QStringLiteral(", ") + detail + QLatin1Char(')');
+            }
+        }
+
+        return base + QStringLiteral(" (") + detail + QLatin1Char(')');
+    };
+
+    auto addOrMergeErrorAt = [&](const QString &fragment, int line, int col, const QString &desc) {
+        for (int k = 0; k < m_errors.size(); ++k) {
+            SyntaxError &e = m_errors[k];
+            if (e.line == line && e.col == col) {
+                e.description = mergeDescriptions(e.description, desc);
+                if (e.fragment.isEmpty())
+                    e.fragment = fragment;
+                return;
+            }
+        }
+        m_errors.append({fragment, line, col, desc});
+    };
 
     auto shouldReportStep = [&](int stepIdx) -> bool {
-        return stepIdx != 1;
+        (void)stepIdx;
+        return true;
     };
 
     auto reportStepOnce = [&](int stepIdx, const Token &tok, int colOverride = -1) {
@@ -126,21 +173,70 @@ void Parser::parseLineWithErrors(int lineStart)
         if (!shouldReportStep(stepIdx)) return;
         if (stepReported[stepIdx]) return;
         const int col = (colOverride >= 0) ? colOverride : tok.startCol;
-        m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
+        addOrMergeErrorAt(tok.lexeme, tok.line, col, descriptions[stepIdx]);
         stepReported[stepIdx] = true;
-    };
-
-    auto reportStepForced = [&](int stepIdx, const Token &tok, int colOverride = -1) {
-        if (stepIdx < 0 || stepIdx >= descriptions.size()) return;
-        if (!shouldReportStep(stepIdx)) return;
-        const int col = (colOverride >= 0) ? colOverride : tok.startCol;
-        m_errors.append({tok.lexeme, tok.line, col, descriptions[stepIdx]});
     };
 
     auto reportTokenOnce = [&](const Token &tok, const QString &desc) {
         if (tokenReportedCols.contains(tok.startCol)) return;
-        m_errors.append({tok.lexeme, tok.line, tok.startCol, desc});
+        if (desc == QStringLiteral("Лексическая ошибка") && suppressedLexCols.contains(tok.startCol))
+            return;
+        addOrMergeErrorAt(tok.lexeme, tok.line, tok.startCol, desc);
         tokenReportedCols.insert(tok.startCol);
+    };
+
+    auto mergeLexIntoStepAt = [&](int stepIdx, const Token &anchorTok, int anchorCol, const QList<int> &lexColsToSuppress) {
+        // Ensure "Ожидалось ..." exists at anchor and add "(Лексическая ошибка)".
+        if (stepIdx >= 0 && stepIdx < descriptions.size())
+            addOrMergeErrorAt(anchorTok.lexeme, anchorTok.line, anchorCol, descriptions[stepIdx]);
+        addOrMergeErrorAt(anchorTok.lexeme, anchorTok.line, anchorCol, QStringLiteral("Лексическая ошибка"));
+        for (int c : lexColsToSuppress)
+            suppressedLexCols.insert(c);
+    };
+
+    auto nextOnLine = [&](int fromPos, int wantCode) -> int {
+        for (int q = fromPos; q < m_tokens.size(); ++q) {
+            const Token &tk = m_tokens.at(q);
+            if (tk.line != lineStart)
+                break;
+            if (tk.code == wantCode)
+                return q;
+        }
+        return -1;
+    };
+
+    auto collectBrokenWordLexColsFrom = [&](int fromPos) -> QList<int> {
+        // Detect pattern: <id> <invalid-char> <id> with NO spaces between them (contiguous columns),
+        // possibly repeated. Return invalid-char columns; empty => not a broken word.
+        if (fromPos < 0 || fromPos >= m_tokens.size())
+            return {};
+        const Token &a0 = m_tokens.at(fromPos);
+        if (a0.line != lineStart || a0.code != 3)
+            return {};
+
+        QList<int> cols;
+        int curEnd = a0.endCol;
+        int q = fromPos + 1;
+        while (q + 1 < m_tokens.size()) {
+            const Token &inv = m_tokens.at(q);
+            const Token &b = m_tokens.at(q + 1);
+            if (inv.line != lineStart || b.line != lineStart)
+                break;
+            if (!(inv.code == -1 && inv.lexeme.size() == 1 && !lexemeIsUnclosedStringError(inv.lexeme)))
+                break;
+            if (b.code != 3)
+                break;
+            if (inv.startCol != curEnd + 1)
+                break;
+            if (b.startCol != inv.endCol + 1)
+                break;
+            cols.append(inv.startCol);
+
+            // Continue chain using b as next left fragment.
+            curEnd = b.endCol;
+            q += 2;
+        }
+        return cols;
     };
 
     auto reportInvalidSinglesInRange = [&](int fromInclusive, int toExclusive) {
@@ -149,8 +245,7 @@ void Parser::parseLineWithErrors(int lineStart)
             if (sk.line != lineStart)
                 break;
             if (sk.code == -1 && sk.lexeme.size() == 1 && !lexemeIsUnclosedStringError(sk.lexeme))
-                reportTokenOnce(sk, (sk.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
-                                                                       : QStringLiteral("Лексическая ошибка"));
+                reportTokenOnce(sk, QStringLiteral("Лексическая ошибка"));
         }
     };
 
@@ -296,7 +391,7 @@ void Parser::parseLineWithErrors(int lineStart)
         if (isAtEnd() || currentToken().line != lineStart) {
             Token lastT = (m_pos > 0) ? m_tokens[m_pos - 1] : Token();
             if (!stepReported[i] && shouldReportStep(i)) {
-                m_errors.append({QString(), lineStart, lastT.endCol + 1, descriptions[i]});
+                addOrMergeErrorAt(QString(), lineStart, lastT.endCol + 1, descriptions[i]);
                 stepReported[i] = true;
             }
             i++;
@@ -305,37 +400,121 @@ void Parser::parseLineWithErrors(int lineStart)
 
         Token t = currentToken();
 
+        // Double '=' (==): extra '=' before string literal.
+        if (i == 5 && expected == 7 && t.code == 6) {
+            reportTokenOnce(t, QStringLiteral("Лишний символ"));
+            m_pos++;
+            continue;
+        }
+
+        // Два идентификатора подряд до ':' — имя переменной должно быть одно; второй лишний (пробел в имени).
+        if (i == 2 && expected == 5 && t.code == 3 && m_pos > 0) {
+            const Token &prev = m_tokens.at(m_pos - 1);
+            if (prev.line == lineStart && prev.code == 3 && t.startCol > prev.endCol + 1) {
+                const int spaceCol = prev.endCol + 1;
+                suppressedLexCols.insert(spaceCol);
+                addOrMergeErrorAt(t.lexeme, t.line, t.startCol, QStringLiteral("Лишний идентификатор"));
+                addOrMergeErrorAt(t.lexeme, t.line, t.startCol, QStringLiteral("Лексическая ошибка"));
+                tokenReportedCols.insert(t.startCol);
+                m_pos++;
+                continue;
+            }
+        }
+
+        // FSM rule: variable name is checked strictly AFTER the (possibly wrong/broken) Const word.
+        // If Const is wrong/broken, we still "consume" its fragments and then expect an identifier next.
+        if (i == 0 && expected == 1 && t.code != 1 && t.code != -1) {
+            // Report expected Const at the first fragment.
+            reportStepOnce(0, t);
+
+            // Merge lexical errors inside the broken keyword (e.g. con#st) into that same message.
+            const QList<int> brokenCols = collectBrokenWordLexColsFrom(m_pos);
+            if (!brokenCols.isEmpty())
+                mergeLexIntoStepAt(0, t, t.startCol, brokenCols);
+
+            // Advance past the whole wrong/broken keyword "word".
+            int afterKwPos = m_pos + 1;
+            if (!brokenCols.isEmpty()) {
+                // Skip contiguous id/invalid/id chain that forms the broken keyword.
+                int curEnd = t.endCol;
+                int q = m_pos + 1;
+                while (q + 1 < m_tokens.size()) {
+                    const Token &inv = m_tokens.at(q);
+                    const Token &b = m_tokens.at(q + 1);
+                    if (inv.line != lineStart || b.line != lineStart)
+                        break;
+                    if (!(inv.code == -1 && inv.lexeme.size() == 1 && !lexemeIsUnclosedStringError(inv.lexeme)))
+                        break;
+                    if (b.code != 3)
+                        break;
+                    if (inv.startCol != curEnd + 1 || b.startCol != inv.endCol + 1)
+                        break;
+                    curEnd = b.endCol;
+                    q += 2;
+                    afterKwPos = q;
+                }
+            }
+
+            m_pos = afterKwPos;
+            i = 1; // now expect variable name strictly after Const
+            continue;
+        }
+
         if (expected == 2 && t.code == 5) {
             reportTokenOnce(t, QStringLiteral("Лишняя лексема"));
             m_pos++;
             continue;
         }
 
+        // Broken identifier word like "Str$ka" (between Const and ':') should become:
+        // "Ожидалось имя переменной (Лексическая ошибка)".
+        if (i == 1 && expected == 3 && t.code == 3) {
+            const QList<int> brokenCols = collectBrokenWordLexColsFrom(m_pos);
+            if (!brokenCols.isEmpty()) {
+                mergeLexIntoStepAt(i, t, t.startCol, brokenCols);
+
+                const int colonIdx = nextOnLine(m_pos + 1, 5);
+                if (colonIdx >= 0) {
+                    m_pos = colonIdx;
+                    i = 2; // expect ':'
+                } else {
+                    // consume this fragment to avoid infinite loop
+                    m_pos++;
+                    i = 2;
+                }
+                continue;
+            }
+        }
+
+        // Broken type word like "st@ring" should become: "Ожидалось 'string' (Лексическая ошибка)".
+        if (i == 3 && expected == 2 && t.code == 3) {
+            const QList<int> brokenCols = collectBrokenWordLexColsFrom(m_pos);
+            if (!brokenCols.isEmpty()) {
+                mergeLexIntoStepAt(i, t, t.startCol, brokenCols);
+                const int eqIdx = nextOnLine(m_pos + 1, 6);
+                if (eqIdx >= 0) {
+                    m_pos = eqIdx;
+                    i = 4; // expect '='
+                } else {
+                    // consume this identifier fragment to avoid infinite loop
+                    m_pos++;
+                    i = 4;
+                }
+                continue;
+            }
+        }
+
         if (t.code == -1) {
             if (lexemeIsUnclosedStringError(t.lexeme)) {
                 unclosedStringOnLine = true;
-                for (int k = m_errors.size() - 1; k >= 0; --k) {
-                    if (m_errors[k].line != lineStart)
-                        continue;
-                    const QString &d = m_errors[k].description;
-                    if (d.startsWith(QStringLiteral("Ожидалось")) ||
-                        d == QStringLiteral("Ожидалась закрытие строки") ||
-                        d == QStringLiteral("Пропущена ';'")) {
-                        m_errors.removeAt(k);
-                    }
-                }
-                for (int s = 0; s < stepReported.size(); ++s)
-                    stepReported[s] = true;
-                reportStepForced(5, t);
-                if (!hasExpectedLaterOnLine(8))
-                    m_errors.append({QString(), lineStart, t.endCol + 1, descriptions[6]});
+                reportTokenOnce(t, QStringLiteral("Не закрытая строка"));
                 m_pos++;
-                i = expectedCodes.size();
+                // Шаг с `;` — последний в цепочке (индекс 6).
+                i = 6;
                 continue;
             }
 
-            reportTokenOnce(t, (t.lexeme == QStringLiteral("'")) ? QStringLiteral("Лишняя кавычка")
-                                                                 : QStringLiteral("Лексическая ошибка"));
+            reportTokenOnce(t, QStringLiteral("Лексическая ошибка"));
             if (!hasExpectedLaterOnLine(expected)) {
                 reportStepOnce(i, t);
             } else {

@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 #include <QTableWidget>
 #include <QTextBlock>
+#include <QTimer>
 
 namespace {
 
@@ -146,6 +147,16 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->comboBox_astFormat, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &MainWindow::refreshAstOutput);
+
+    CodeEditor *starter = new CodeEditor();
+    connect(starter, &CodeEditor::cursorPositionChanged, this, &MainWindow::updateCursorPosition);
+    starter->setPlainText(QStringLiteral("const stroka: string = 'Hello';"));
+    ui->tabWidget->addTab(starter, QStringLiteral("new.cpp"));
+    ui->tabWidget->setCurrentWidget(starter);
+    starter->document()->setModified(false);
+    ui->tabWidget_error->setCurrentIndex(1);
+    updateCursorPosition();
+    QTimer::singleShot(0, this, &MainWindow::on_action_run_triggered);
 }
 
 void MainWindow::on_action_run_triggered() {
