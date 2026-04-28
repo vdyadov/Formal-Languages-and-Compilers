@@ -1,6 +1,52 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <QGridLayout>
+
+#include <QRegularExpression>
+#include <QTableWidget>
+#include <QTextBlock>
+#include <QTimer>
+
+namespace {
+
+static void jumpToErrorLocation(QTableWidget *table, int row, int tabWidgetCol, QWidget *editorTabWidget)
+{
+    if (!table || row < 0 || !editorTabWidget)
+        return;
+
+    QTableWidgetItem *item = table->item(row, tabWidgetCol);
+    if (!item)
+        return;
+
+    QString locText = item->text();
+
+    static QRegularExpression re("(\\d+)");
+    QRegularExpressionMatchIterator i = re.globalMatch(locText);
+
+    QList<int> coords;
+    while (i.hasNext())
+        coords << i.next().captured(1).toInt();
+
+    if (coords.size() < 2)
+        return;
+
+    const int targetLine = coords[0];
+    const int targetCol = coords[1];
+
+    CodeEditor *editor = qobject_cast<CodeEditor *>(editorTabWidget);
+    if (!editor)
+        return;
+
+    QTextBlock block = editor->document()->findBlockByLineNumber(targetLine - 1);
+    QTextCursor cursor(block);
+    cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, targetCol - 1);
+    editor->setTextCursor(cursor);
+    editor->setFocus();
+}
+
+} // namespace
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -62,6 +108,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget_error->setColumnCount(3);
     ui->tableWidget_error->setHorizontalHeaderLabels({"Неверный фрагмент", "Местоположение", "Описание"});
     ui->tableWidget_error->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    CodeEditor *starter = new CodeEditor();
+    connect(starter, &CodeEditor::cursorPositionChanged, this, &MainWindow::updateCursorPosition);
+    starter->setPlainText(QStringLiteral("const stroka: string = 'Hello';"));
+    ui->tabWidget->addTab(starter, QStringLiteral("new.cpp"));
+    ui->tabWidget->setCurrentWidget(starter);
+    starter->document()->setModified(false);
+    ui->tabWidget_error->setCurrentIndex(1);
+    updateCursorPosition();
+    QTimer::singleShot(0, this, &MainWindow::on_action_run_triggered);
 }
 
 void MainWindow::on_action_run_triggered() {
