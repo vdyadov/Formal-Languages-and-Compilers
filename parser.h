@@ -26,6 +26,7 @@ private:
     bool isAtEnd();
 
     bool match(int expectedCode, const QString &errorDescription);
+    void parseLineWithErrors(int lineStart);
 };
 
 #endif

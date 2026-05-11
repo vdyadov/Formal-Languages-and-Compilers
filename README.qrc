@@ -2,5 +2,14 @@
     <qresource prefix="/">
         <file>README.md</file>
         <file>HELP.md</file>
+        <file>TEXT_TASK.md</file>
+        <file>TEXT_GRAMMAR.md</file>
+        <file>TEXT_GRAMMAR_fsm.png</file>
+        <file>TEXT_CLASSIFICATION.md</file>
+        <file>TEXT_METHOD.md</file>
+        <file>TEXT_METHOD_fsm.png</file>
+        <file>TEXT_TEST.md</file>
+        <file>TEXT_REFERENCES.md</file>
+        <file>TEXT_SOURCE.md</file>
     </qresource>
 </RCC>

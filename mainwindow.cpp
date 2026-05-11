@@ -8,45 +8,6 @@
 #include <QTextBlock>
 #include <QTimer>
 
-namespace {
-
-static void jumpToErrorLocation(QTableWidget *table, int row, int tabWidgetCol, QWidget *editorTabWidget)
-{
-    if (!table || row < 0 || !editorTabWidget)
-        return;
-
-    QTableWidgetItem *item = table->item(row, tabWidgetCol);
-    if (!item)
-        return;
-
-    QString locText = item->text();
-
-    static QRegularExpression re("(\\d+)");
-    QRegularExpressionMatchIterator i = re.globalMatch(locText);
-
-    QList<int> coords;
-    while (i.hasNext())
-        coords << i.next().captured(1).toInt();
-
-    if (coords.size() < 2)
-        return;
-
-    const int targetLine = coords[0];
-    const int targetCol = coords[1];
-
-    CodeEditor *editor = qobject_cast<CodeEditor *>(editorTabWidget);
-    if (!editor)
-        return;
-
-    QTextBlock block = editor->document()->findBlockByLineNumber(targetLine - 1);
-    QTextCursor cursor(block);
-    cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, targetCol - 1);
-    editor->setTextCursor(cursor);
-    editor->setFocus();
-}
-
-} // namespace
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -64,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     vSplitter->setStretchFactor(0, 60);
-    vSplitter->setStretchFactor(1, 1);
+    vSplitter->setStretchFactor(2, 1);
 
     vSplitter->setHandleWidth(4);
     vSplitter->setStyleSheet("QSplitter::handle { background: #cccccc; }");
@@ -178,7 +139,7 @@ void MainWindow::on_action_run_triggered() {
     // ui->tableWidget_error->setItem(lastRow, 2, countItem);
 }
 
-void MainWindow::on_tableWidget_error_cellDoubleClicked(int row, int column)
+void MainWindow::on_tableWidget_error_cellDoubleClicked(int row, int /*column*/)
 {
     if (row >= ui->tableWidget_error->rowCount() - 1) return;
 
@@ -422,6 +383,48 @@ void MainWindow::on_action_info_triggered() {
     helpWin->setAttribute(Qt::WA_DeleteOnClose);
 
     helpWin->show();
+}
+
+void MainWindow::on_action_task_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Постановка задачи"), QStringLiteral("://TEXT_TASK.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_grammar_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Грамматика"), QStringLiteral("://TEXT_GRAMMAR.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_class_gramm_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Классификация грамматики"), QStringLiteral("://TEXT_CLASSIFICATION.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_method_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Метод анализа"), QStringLiteral("://TEXT_METHOD.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_test_ex_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Тестовый пример"), QStringLiteral("://TEXT_TEST.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_libs_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Список литературы"), QStringLiteral("://TEXT_REFERENCES.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
+}
+
+void MainWindow::on_action_code_triggered() {
+    InfoWindow *w = new InfoWindow(QStringLiteral("Исходный код программы"), QStringLiteral("://TEXT_SOURCE.md"), this);
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
 }
 
 MainWindow::~MainWindow()

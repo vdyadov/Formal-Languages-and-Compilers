@@ -4,6 +4,7 @@
 # Builds directory
 build/
 .qtcreator/
+.worktrees/
 
 # Compiled Object files
 *.slo

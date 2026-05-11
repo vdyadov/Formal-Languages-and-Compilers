@@ -38,7 +38,16 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
-    README.md
+    README.md \
+    TEXT_TASK.md \
+    TEXT_GRAMMAR.md \
+    TEXT_GRAMMAR_fsm.png \
+    TEXT_CLASSIFICATION.md \
+    TEXT_METHOD.md \
+    TEXT_METHOD_fsm.png \
+    TEXT_TEST.md \
+    TEXT_REFERENCES.md \
+    TEXT_SOURCE.md
 
 RESOURCES += \
     README.qrc

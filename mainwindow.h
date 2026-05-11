@@ -60,6 +60,14 @@ private slots:
     // Info menu
     void on_action_about_triggered();
     void on_action_info_triggered();
+    // Текст (разделы пояснительной записки)
+    void on_action_task_triggered();
+    void on_action_grammar_triggered();
+    void on_action_class_gramm_triggered();
+    void on_action_method_triggered();
+    void on_action_test_ex_triggered();
+    void on_action_libs_triggered();
+    void on_action_code_triggered();
     // Run program
     void on_action_run_triggered();
     void on_tableWidget_cellDoubleClicked(int row);
