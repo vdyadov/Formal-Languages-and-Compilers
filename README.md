@@ -157,3 +157,72 @@ Const Stroka2: string = 'Мир';
 - **Ожидаемый результат:** последовательный разбор нескольких строк с корректной фильтрацией лексем по строкам.
   - Таблица показывает лексемы со ссылками на строки исходного кода (строка 2, строка 3).
   - Каждая строка разбирается независимо с корректными токенами и их позициями.
+
+
+# Лабораторная работа №6
+
+## Название
+Создание внутренней формы представления программы
+
+## Вариант задания
+Грамматика на языке Pascal Язык программирования: Pascal
+
+Полное определение грамматики:
+```
+E → TA
+A → ε | + TA | - TA
+T → FB
+B → ε | * FB | / FB
+F → num | id | (E)
+id → letter {letter | digit}
+num → digit {digit}
+```
+Примеры верных строк:
+```
+1 + 2 * 3
+(1 + 2) * 3
+a+1
+(10 + 5) * 2 - 3
+```
+## Лексические и синтаксические ошибки
+### Диаграмма лексера:
+<img width="421" height="1461" alt="image" src="https://github.com/user-attachments/assets/60a8898a-a38b-455a-8cd4-37349e20d680" />
+
+### Схема рекурсивного спуска:
+
+<img width="732" height="615" alt="image" src="https://github.com/user-attachments/assets/6e0c6c99-c3fa-41e7-b542-a1ff8b809e67" />
+
+### Тестовые примеры:
+<img width="803" height="537" alt="image" src="https://github.com/user-attachments/assets/2825a223-1da1-4440-817b-93578e5f8efd" />
+<img width="800" height="305" alt="image" src="https://github.com/user-attachments/assets/8aa826e1-2f4c-46ab-998d-65f3ad40b343" />
+<img width="799" height="322" alt="image" src="https://github.com/user-attachments/assets/2f8c2ef4-1424-4840-9368-54f2c584f973" />
+<img width="804" height="335" alt="image" src="https://github.com/user-attachments/assets/fcb7bc03-aeeb-4da1-a558-4f9f4197a42c" />
+
+
+<img width="786" height="424" alt="image" src="https://github.com/user-attachments/assets/8938cb63-eed5-439a-9f95-69f8ed636740" />
+<img width="794" height="257" alt="image" src="https://github.com/user-attachments/assets/8abc7fa4-ff81-46bb-97f9-e22b3b22164a" />
+<img width="797" height="296" alt="image" src="https://github.com/user-attachments/assets/66274dfa-4e61-459e-93bc-b6ef300441e1" />
+<img width="796" height="329" alt="image" src="https://github.com/user-attachments/assets/0a4d3973-913e-40d0-b8ac-352624631959" />
+
+
+<img width="795" height="369" alt="image" src="https://github.com/user-attachments/assets/34ce5aed-dca0-43ce-bd54-859517d39b6b" />
+<img width="795" height="308" alt="image" src="https://github.com/user-attachments/assets/e2620a8e-0e65-41c2-96a9-8ffca7c06435" />
+<img width="800" height="369" alt="image" src="https://github.com/user-attachments/assets/c4422d32-dcfb-48b3-ba05-47a8b9cf43a7" />
+<img width="800" height="367" alt="image" src="https://github.com/user-attachments/assets/3776f0e1-a237-43df-95bc-e5204d5d44f0" />
+
+
+
+### Внутренняя форма представления программы (тетрады)
+<img width="789" height="235" alt="image" src="https://github.com/user-attachments/assets/d4ee9821-2e6d-4f34-82c3-a87157715d6b" />
+
+
+### ПОЛИЗ
+<img width="798" height="421" alt="image" src="https://github.com/user-attachments/assets/822ac137-89fa-4576-b818-f7892cc7e722" />
+
+
+
+
+
+
+
+
