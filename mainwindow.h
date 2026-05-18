@@ -17,6 +17,8 @@
 #include "infowindow.h"
 #include "lexer.h"
 #include "parser.h"
+#include "expr_lexer.h"
+#include "expr_parser.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -38,6 +40,7 @@ private:
     bool maybeSave(CodeEditor *editor);
     bool saveFile(CodeEditor *editor, const QString &path = "");
     void setupEditor(CodeEditor *editor, const QString &fileName);
+    void analyzeExpression(const QString &code);
 
 private slots:
     void updateCursorPosition();

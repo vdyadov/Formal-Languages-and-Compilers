@@ -62,6 +62,87 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget_error->setColumnCount(3);
     ui->tableWidget_error->setHorizontalHeaderLabels({"Неверный фрагмент", "Местоположение", "Описание"});
     ui->tableWidget_error->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_expr_lex->setColumnCount(4);
+    ui->tableWidget_expr_lex->setHorizontalHeaderLabels(
+        {"Условный код", "Тип лексемы", "Лексема", "Местоположение"});
+    ui->tableWidget_expr_lex->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_expr_err->setColumnCount(3);
+    ui->tableWidget_expr_err->setHorizontalHeaderLabels(
+        {"Неверный фрагмент", "Местоположение", "Описание"});
+    ui->tableWidget_expr_err->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    ui->tableWidget_expr_tetrad->setColumnCount(4);
+    ui->tableWidget_expr_tetrad->setHorizontalHeaderLabels(
+        {"op", "arg1", "arg2", "result"});
+    ui->tableWidget_expr_tetrad->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+}
+
+void MainWindow::analyzeExpression(const QString &code) {
+    ExprLexer exprLexer;
+    const QList<Token> exprTokens = exprLexer.tokenize(code);
+
+    ui->tableWidget_expr_lex->setRowCount(0);
+    for (const Token &t : std::as_const(exprTokens)) {
+        const int row = ui->tableWidget_expr_lex->rowCount();
+        ui->tableWidget_expr_lex->insertRow(row);
+        ui->tableWidget_expr_lex->setItem(row, 0, new QTableWidgetItem(QString::number(t.code)));
+        ui->tableWidget_expr_lex->setItem(row, 1, new QTableWidgetItem(t.typeName));
+        ui->tableWidget_expr_lex->setItem(row, 2, new QTableWidgetItem(t.lexeme));
+        ui->tableWidget_expr_lex->setItem(row, 3, new QTableWidgetItem(t.getLocation()));
+        if (t.code == ExprTokenCode::ERROR) {
+            ui->tableWidget_expr_lex->item(row, 2)->setBackground(Qt::red);
+        }
+    }
+
+    ExprParser exprParser(exprTokens);
+    const ExprAnalysisResult exprResult = exprParser.parse();
+
+    ui->tableWidget_expr_err->setRowCount(0);
+    if (exprResult.syntaxErrors.isEmpty()) {
+        ui->tableWidget_expr_err->insertRow(0);
+        ui->tableWidget_expr_err->setItem(
+            0, 2, new QTableWidgetItem(QStringLiteral("Синтаксических ошибок нет!")));
+    } else {
+        for (const SyntaxError &err : std::as_const(exprResult.syntaxErrors)) {
+            const int row = ui->tableWidget_expr_err->rowCount();
+            ui->tableWidget_expr_err->insertRow(row);
+            ui->tableWidget_expr_err->setItem(row, 0, new QTableWidgetItem(err.fragment));
+            ui->tableWidget_expr_err->setItem(
+                row, 1,
+                new QTableWidgetItem(QStringLiteral("Стр %1, Поз %2").arg(err.line).arg(err.col)));
+            ui->tableWidget_expr_err->setItem(row, 2, new QTableWidgetItem(err.description));
+        }
+    }
+
+    ui->tableWidget_expr_tetrad->setRowCount(0);
+    ui->lineEdit_expr_rpn->clear();
+    ui->lineEdit_expr_eval->clear();
+
+    if (exprResult.success) {
+        for (const Tetrad &tetrad : std::as_const(exprResult.tetrads)) {
+            const int row = ui->tableWidget_expr_tetrad->rowCount();
+            ui->tableWidget_expr_tetrad->insertRow(row);
+            ui->tableWidget_expr_tetrad->setItem(row, 0, new QTableWidgetItem(tetrad.op));
+            ui->tableWidget_expr_tetrad->setItem(row, 1, new QTableWidgetItem(tetrad.arg1));
+            ui->tableWidget_expr_tetrad->setItem(row, 2, new QTableWidgetItem(tetrad.arg2));
+            ui->tableWidget_expr_tetrad->setItem(row, 3, new QTableWidgetItem(tetrad.result));
+        }
+
+        ui->lineEdit_expr_rpn->setText(exprResult.rpn.join(QLatin1Char(' ')));
+
+        if (exprResult.hasEvaluation) {
+            ui->lineEdit_expr_eval->setText(QString::number(exprResult.evaluatedValue));
+        } else {
+            ui->lineEdit_expr_eval->setText(exprResult.evaluationMessage);
+        }
+    } else {
+        ui->lineEdit_expr_rpn->setText(
+            QStringLiteral("ПОЛИЗ строится только для корректных выражений"));
+        ui->lineEdit_expr_eval->setText(
+            QStringLiteral("Вычисление доступно только для корректных выражений из целых чисел"));
+    }
 }
 
 void MainWindow::on_action_run_triggered() {
@@ -103,8 +184,15 @@ void MainWindow::on_action_run_triggered() {
         }
     }
 
-    // Вывод в StatusBar
-    statusBar()->showMessage(QString("Анализ завершен. Найдено ошибок: %1").arg(errors.size()));
+    analyzeExpression(code);
+
+    const int exprTabIndex = ui->tabWidget_error->indexOf(ui->tab_vpp);
+    if (exprTabIndex >= 0) {
+        ui->tabWidget_error->setCurrentIndex(exprTabIndex);
+    }
+
+    statusBar()->showMessage(
+        QStringLiteral("Анализ завершен. Ошибок парсера (const): %1").arg(errors.size()));
 
     // Добавляем финальную строку в таблицу
     // int lastRow = ui->tableWidget_error->rowCount();

@@ -40,6 +40,85 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_vpp">
+       <attribute name="title">
+        <string>ВПП (выражение)</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_vpp">
+        <item>
+         <widget class="QTabWidget" name="tabWidget_vpp">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="tab_vpp_lex">
+           <attribute name="title">
+            <string>Лексер</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_vpp_lex">
+            <item>
+             <widget class="QTableWidget" name="tableWidget_expr_lex"/>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tab_vpp_parse">
+           <attribute name="title">
+            <string>Парсер</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_vpp_parse">
+            <item>
+             <widget class="QTableWidget" name="tableWidget_expr_err"/>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tab_vpp_tetrad">
+           <attribute name="title">
+            <string>Тетрады</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_vpp_tetrad">
+            <item>
+             <widget class="QTableWidget" name="tableWidget_expr_tetrad"/>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tab_vpp_rpn">
+           <attribute name="title">
+            <string>ПОЛИЗ</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_vpp_rpn">
+            <item>
+             <widget class="QLabel" name="label_expr_rpn">
+              <property name="text">
+               <string>ПОЛИЗ:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_expr_rpn">
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_expr_eval">
+              <property name="text">
+               <string>Значение:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_expr_eval">
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="1" column="0">

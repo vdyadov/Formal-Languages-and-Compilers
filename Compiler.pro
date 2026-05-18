@@ -10,6 +10,8 @@ CONFIG += c++17
 
 SOURCES += \
     codeeditor.cpp \
+    expr_lexer.cpp \
+    expr_parser.cpp \
     infowindow.cpp \
     lexer.cpp \
     main.cpp \
@@ -18,6 +20,8 @@ SOURCES += \
 
 HEADERS += \
     codeeditor.h \
+    expr_lexer.h \
+    expr_parser.h \
     infowindow.h \
     lexer.h \
     mainwindow.h \
