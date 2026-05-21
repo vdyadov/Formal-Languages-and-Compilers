@@ -423,3 +423,77 @@ ___
   - декларация: `{"kind":"ConstDecl","name":...,"namePos":...,"children":[...]}`
 
 
+
+## Лабораторная работа 7. Анализ и преобразование кода с использованием Clang и LLVM
+
+**Постановка задачи**
+Познакомиться с инструментами Clang и LLVM, научиться собирать AST и IR-промежуточное представление кода на C/C++, а также извлекать базовую информацию о программе (например, список функций).
+
+**Общее задание**
+
+Задания:
+1. Получите IR для -O0.
+2. Примените -O2 и найдите, исчезла ли переменная LIMIT.
+3. Примените отдельно -constprop и -ipsccp.
+4. Постройте CFG до и после оптимизаций.
+5. Сделайте вывод о том, как и когда константа подставляется?
+
+Работа с AST
+<img width="1362" height="865" alt="image" src="https://github.com/user-attachments/assets/23de12e8-e8be-4f43-a3a3-87e0fbad1052" />
+
+Генерация LLVM IR
+<img width="1898" height="1138" alt="image" src="https://github.com/user-attachments/assets/be59a9d5-fbe1-4398-90f5-dc4e7ed0b86a" />
+
+Оптимизация IR
+<img width="1898" height="1138" alt="image" src="https://github.com/user-attachments/assets/7bbf0e11-eb06-46d3-a917-105fae3acec3" />
+
+Построение CFG
+<img width="1303" height="890" alt="image" src="https://github.com/user-attachments/assets/25c36aa2-5e76-453f-b2a6-f5a016cc34e0" />
+
+<img width="660" height="144" alt="image" src="https://github.com/user-attachments/assets/235ac2f3-fd24-441f-8d6f-34a8fefe53cd" />
+
+<img width="285" height="124" alt="image" src="https://github.com/user-attachments/assets/a396f313-feb3-4178-b956-c42493e55b8b" />
+
+
+**Вариант индивидуального задания**
+Строковые константы
+```c
+#include <stdio.h>
+
+int main() {
+    const char* msg = "Hello, World!";
+    printf("%s\n", msg);
+    return 0;
+}
+```
+
+Работа с AST
+<img width="1372" height="963" alt="image" src="https://github.com/user-attachments/assets/1a265b64-35e3-42c3-9b6e-5ff3b50545a4" />
+
+Генерация LLVM IR с оптимизацией О0
+<img width="1664" height="656" alt="image" src="https://github.com/user-attachments/assets/5ce6e13d-e662-4216-a81b-507b4c3a94a7" />
+
+Генерация LLVM IR с оптимизацией О2 и -mergeconst
+<img width="1536" height="549" alt="image" src="https://github.com/user-attachments/assets/ce5869db-0157-42d5-afd3-f3320208fde3" />
+
+**Сравнение**
+| Характеристика | Первый файл (оптимизированный) | Второй файл (неоптимизированный) |
+| :--- | :--- | :--- |
+| **Вывод строки** | `puts("Hello, World!")` | `printf("%s\n", "Hello, World!")` |
+| **Локальные переменные** | Отсутствуют | `alloca i32`, `alloca i8*` (для `int main()` и `char *str`) |
+| **Оптимизация** | `optnone` отсутствует, агрессивная оптимизация | Присутствует атрибут `noinline nounwind optnone` |
+| **Атрибуты функций** | `nofree nounwind uwtable` | `noinline nounwind optnone uwtable` |
+| **Фрейм указатель** | `"frame-pointer"="none"` | `"frame-pointer"="all"` |
+
+Построение CFG
+
+<img width="709" height="133" alt="cfg_main" src="https://github.com/user-attachments/assets/e8beb81b-a213-473e-906c-dd4d38a88f6a" />
+
+**Вывод**
+
+Производительность: Первый файл (оптимизированный) будет работать значительно быстрее. Он использует более эффективную библиотечную функцию (puts), не тратит время на работу со стеком для локальных переменных и не создает лишних инструкций по загрузке/сохранению данных.
+
+Отладка: Второй файл (неоптимизированный) предназначен для разработки и отладки. Его код прямолинейно соответствует исходному коду на C, все переменные лежат в памяти и доступны отладчику (gdb, lldb).
+
+Размер: Оптимизированный код, скорее всего, будет немного компактнее за счет отсутствия пролога/эпилога функции для работы с alloca и замены printf на puts.
+
